@@ -221,8 +221,14 @@ sub make_request {
     croak __PACKAGE__ . " request is not a HTTP::Request object [$original_request]"
         unless $original_request->isa('HTTP::Request');
     
-    return $self->_forward($original_request, @_) unless $self->cache;
-    
+    unless ($self->cache) {
+        my $modified_request =
+            $self->_modifiy_cache_control_request($original_request);
+        my $retrieved_response = $self->_forward($modified_request, @_);
+        my $modified_response =
+            $self->_modifiy_cache_control_response($retrieved_response);
+        return $modified_response;
+    }
     
     # How did we end up here ?
     carp __PACKAGE__ . 'runaway';
@@ -241,6 +247,16 @@ sub _forward {
         unless $forward_resp->isa('HTTP::Response');
     
     return $forward_resp;
+}
+
+sub _modifiy_cache_control_request {
+    my $self = shift;
+    return shift->clone;
+}
+
+sub _modifiy_cache_control_response {
+    my $self = shift;
+    return shift->clone;
 }
 
 1;
