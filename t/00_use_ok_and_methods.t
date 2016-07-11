@@ -20,8 +20,8 @@ my $chi_cache = CHI->new(
     }
 );
 
-my $original_rqst = HTTP::Request->new();
-$original_rqst->method('TEST'); # yep, does not exists, thats fine
+my $request = HTTP::Request->new();
+$request->method('TEST'); # yep, does not exists, thats fine
 
 
 subtest 'Instantiating HTTP::Caching object' => sub {
@@ -31,7 +31,7 @@ subtest 'Instantiating HTTP::Caching object' => sub {
     new_ok('HTTP::Caching', [
             cache                   => $chi_cache,
             cache_type              => 'private',
-            cache_request_control   => [ 'max-age=3600' ],
+            cache_request_control   => 'max-age=3600',
             forwarder               => sub { return HTTP::Response->new(100) }
         ] , 'my $http_caching'
     );
@@ -52,8 +52,8 @@ subtest 'HTTP::Caching make_request' => sub {
     can_ok($http_caching, 'make_request');
     
 
-    my $original_resp = $http_caching->make_request($original_rqst);
-    ok($original_resp->is_info,
+    my $response = $http_caching->make_request($request);
+    ok($response->is_info,
         '... and we can continue');
     
     eval {$http_caching->make_request};
@@ -90,10 +90,10 @@ subtest 'HTTP::Caching forwarding' => sub {
         return $forward_resp;
     }
     
-    my $retrieved_resp = $http_caching->make_request($original_rqst);
-    isa_ok ($retrieved_resp, 'HTTP::Response',
+    my $response = $http_caching->make_request($request);
+    isa_ok ($response, 'HTTP::Response',
         'forwarded response back');
-    is($retrieved_resp->message, 'Yay!',
+    is($response->message, 'Yay!',
         '... with the message: "Yay!"');
     
     my $errs_caching = eval {
@@ -104,15 +104,9 @@ subtest 'HTTP::Caching forwarding' => sub {
         )
     };
     
-    eval {$errs_caching->make_request($original_rqst) };
+    eval {$errs_caching->make_request($request) };
     like($@, qr/HTTP::Caching response from forwarder/,
         '... but do not allow bad responses');
 
 
 };
-
-
-
-
-
-

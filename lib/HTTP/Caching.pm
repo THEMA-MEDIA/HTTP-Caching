@@ -63,13 +63,13 @@ has cache_type => (
 has cache_control_request => (
     is          => 'ro',
     required    => 0,
-    isa         => ArrayRef[Str],
+    isa         => Str,
 );
 
 has cache_control_response => (
     is          => 'ro',
     required    => 0,
-    isa         => ArrayRef[Str],
+    isa         => Str,
 );
 
 has forwarder => (
@@ -215,23 +215,33 @@ another 5XX Error.
 sub make_request {
     my $self = shift;
     
-    my $original_request = shift;
-    croak __PACKAGE__ . " missing request"
-        unless defined $original_request;
-    croak __PACKAGE__ . " request is not a HTTP::Request object [$original_request]"
-        unless $original_request->isa('HTTP::Request');
+    my $presented_request = shift;
+    croak __PACKAGE__
+        . " missing request"
+        unless defined $presented_request;
+    croak __PACKAGE__
+        . " request is not a HTTP::Request [$presented_request]"
+        unless $presented_request->isa('HTTP::Request');
+    
+    my @params = @_;
     
     unless ($self->cache) {
-        my $modified_request =
-            $self->_modifiy_cache_control_request($original_request);
-        my $retrieved_response = $self->_forward($modified_request, @_);
-        my $modified_response =
-            $self->_modifiy_cache_control_response($retrieved_response);
-        return $modified_response;
+        # add the default Cache-Control request header-field
+        my $forwarded_rqst =
+            $self->_modify_request_cache_control($presented_request);
+        
+        my $forwarded_resp = $self->_forward($forwarded_rqst, @params);
+        
+        # add the default Cache-Control response header-field
+        my $response =
+            $self->_modify_response_cache_control($forwarded_resp);
+        
+        return $response;
     }
     
     # How did we end up here ?
-    carp __PACKAGE__ . 'runaway';
+    carp __PACKAGE__
+        . 'runaway';
     return HTTP::Response->new(500, "Oops, HTTP::Caching runaway");
     
 }
@@ -243,20 +253,94 @@ sub _forward {
     
     my $forward_resp = $self->forwarder->($forward_rqst, @_);
     
-    croak __PACKAGE__ . " response from forwarder is not a HTTP::Response object [$forward_resp]"
+    croak __PACKAGE__
+        . " response from forwarder is not a HTTP::Response [$forward_resp]"
         unless $forward_resp->isa('HTTP::Response');
     
     return $forward_resp;
 }
 
-sub _modifiy_cache_control_request {
-    my $self = shift;
-    return shift->clone;
+sub _modify_request_cache_control {
+    my $self        = shift;
+    my $rqst        = shift;
+    
+    my $modified_header = $self->_modify_cache_control_header(
+        $rqst->headers,
+        $self->cache_control_request,
+    );
+    
+    my $modified_rqst =
+        $self->_substitute_request_header( $rqst, $modified_header );
+    
+    return $modified_rqst
 }
 
-sub _modifiy_cache_control_response {
-    my $self = shift;
-    return shift->clone;
+sub _modify_response_cache_control {
+    my $self        = shift;
+    my $resp        = shift;
+    
+    my $modified_header = $self->_modify_cache_control_header(
+        $resp->headers,
+        $self->cache_control_response,
+    );
+    
+    my $modified_resp =
+        $self->_substitute_response_header( $resp, $modified_header );
+    
+    return $modified_resp
+    
+}
+
+sub _modify_cache_control_header {
+    my $self        = shift;
+    my $header      = shift->clone;
+    my $directives  = shift;
+    
+    if ($directives) {
+        $header->header('Cache-Control' => $directives) # TODO This is over symplified
+    }
+    
+    return $header;
+}
+
+sub _substitute_request_header {
+    my $self        = shift;
+    my $rqst        = shift;
+    my $head        = shift;
+    
+    # unraffle the HTTP::Request
+    my $rqst_method     = $rqst->method;
+    my $rqst_uri        = $rqst->uri;
+#   my $rqst_headers    = $rqst->headers; # we'll substitute this
+    my $rqst_content    = $rqst->content;
+    
+    return
+        !$head ?
+            HTTP::Request->new( $rqst_method, $rqst_uri ) :
+        !$rqst_content ?
+            HTTP::Request->new( $rqst_method, $rqst_uri, $head ) :
+            HTTP::Request->new( $rqst_method, $rqst_uri, $head, $rqst_content )
+    
+}
+
+sub _substitute_response_header {
+    my $self        = shift;
+    my $resp        = shift;
+    my $head        = shift;
+    
+    # unraffle the HTTP::Request
+    my $resp_code       = $resp->code;
+    my $resp_msg        = $resp->message;
+#   my $resp_headers    = $resp->headers; # we'll substitute this
+    my $resp_content    = $resp->content;
+    
+    return
+        !$head ?
+            HTTP::Response->new( $resp_code, $resp_msg ) :
+        !$resp_content ?
+            HTTP::Response->new( $resp_code, $resp_msg, $head ) :
+            HTTP::Response->new( $resp_code, $resp_msg, $head, $resp_content )
+    
 }
 
 1;
