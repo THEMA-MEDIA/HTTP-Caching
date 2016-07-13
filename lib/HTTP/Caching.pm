@@ -81,8 +81,8 @@ has forwarder => (
 =head1 DESCRIPTION
 
 This module tries to provide caching for HTTP responses based on
-L<RFC 7234 Hypertext Transfer Protocol (HTTP/1.1): Caching|
-    http://tools.ietf.org/html/rfc7234 >.
+L<RFC 7234 Hypertext Transfer Protocol (HTTPE<sol>1.1): Caching|
+    http://tools.ietf.org/html/rfc7234>.
 
 Basicly it looks like the following steps below:
 
