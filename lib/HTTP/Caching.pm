@@ -135,7 +135,7 @@ The above is a over-simplified version of the RFC
     my $http_caching = HTTP::Caching->new(
         cache           => $chi_cache,
         cache_type      => 'private',
-        cache_request   => ( 'max-age=86400', 'min-fresh=60' ),
+        cache_request   => 'max-age=86400, min-fresh=60',
         forwarder       => sub { return $ua->request(shift) }
     );
 
@@ -175,9 +175,9 @@ C<'private'>.
 
 =item cache_control_request
 
-These are a list of key/values that will be sent as default with the request. So
-you do not have to set those each time. See RFC 7234 Section 5.2.1 for the list
-of available cache-control directives.
+A string that contains the Cache-control header-field settings that will be sent
+as default with the request. So you do not have to set those each time. See
+RFC 7234 Section 5.2.1 for the list of available cache-control directives.
 
 =item cache_control_response
 

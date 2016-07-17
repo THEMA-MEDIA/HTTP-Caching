@@ -32,7 +32,7 @@ subtest 'Instantiating HTTP::Caching object' => sub {
             cache                   => $chi_cache,
             cache_type              => 'private',
             cache_request_control   => 'max-age=3600',
-            forwarder               => sub { return HTTP::Response->new(100) }
+            forwarder               => sub { return HTTP::Response->new(501) }
         ] , 'my $http_caching'
     );
     
@@ -45,7 +45,7 @@ subtest 'HTTP::Caching make_request' => sub {
         HTTP::Caching->new(
             cache                   => undef,
             cache_type              => 'private',
-            forwarder               => sub { return HTTP::Response->new(100) }
+            forwarder               => sub { return HTTP::Response->new(501) }
         )
     };
     
@@ -53,8 +53,8 @@ subtest 'HTTP::Caching make_request' => sub {
     
 
     my $response = $http_caching->make_request($request);
-    ok($response->is_info,
-        '... and we can continue');
+    ok($response->is_error,
+        '... gives an error, but we can continue');
     
     eval {$http_caching->make_request};
     like($@, qr/HTTP::Caching missing request/,
@@ -85,7 +85,7 @@ subtest 'HTTP::Caching forwarding' => sub {
         is($forward_rqst->method, 'TEST',
             '... with method "TEST"');
         
-        my $forward_resp = HTTP::Response->new(200, 'Yay!');
+        my $forward_resp = HTTP::Response->new(501, 'Nay!');
         
         return $forward_resp;
     }
@@ -93,8 +93,8 @@ subtest 'HTTP::Caching forwarding' => sub {
     my $response = $http_caching->make_request($request);
     isa_ok ($response, 'HTTP::Response',
         'forwarded response back');
-    is($response->message, 'Yay!',
-        '... with the message: "Yay!"');
+    is($response->message, 'Nay!',
+        '... with the message: "Nay!"');
     
     my $errs_caching = eval {
         HTTP::Caching->new(
