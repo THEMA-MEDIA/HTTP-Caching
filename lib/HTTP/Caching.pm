@@ -278,17 +278,24 @@ sub _forward {
 
 sub _store_request_with_response {
     my $self        = shift;
-    my $rqst        = shift->clone or croak ;
-    my $resp        = shift->clone or die;
+    my $rqst        = shift;
+    my $resp        = shift;
     
+    # store the response content on it's own
     my $content_key = $self->_store_response_content($resp);
     my $request_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
     
+    # strip the request and response from their content, not used during checks
+    my $rqst_clone = $rqst->clone;
+    $rqst_clone->content(undef);
+    my $resp_clone = $resp->clone;
+    $resp_clone->content(undef);
+    
     $self->cache->set($request_key,
         {
-            rqst        => $rqst,
-            resp        => $resp,
-            content_key => $content_key
+            stripped_rqst   => $rqst_clone,
+            stripped_resp   => $resp_clone,
+            content_key     => $content_key
         }
     );
     
