@@ -282,7 +282,7 @@ sub _store_request_with_response {
     my $resp        = shift;
     
     # store the response content on it's own
-    my $content_key = $self->_store_response_content($resp);
+    my $content_key = $self->_store_content($resp->content);
     my $request_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
     
     # strip the request and response from their content, not used during checks
@@ -301,13 +301,13 @@ sub _store_request_with_response {
     
 }
 
-sub _store_response_content {
+sub _store_content {
     my $self        = shift;
-    my $resp        = shift;
+    my $content     = shift;
     
     my $content_key = Digest::MD5::md5_hex(Time::HiRes::time());
     
-    eval { $self->cache->set( $content_key, $resp->content() ) };
+    eval { $self->cache->set( $content_key, $content ) };
     return $content_key unless $@;
     
     croak __PACKAGE__
