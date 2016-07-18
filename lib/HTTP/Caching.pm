@@ -10,6 +10,8 @@ use strict;
 use warnings;
 
 use Carp;
+use Digest::MD5;
+use Time::HiRes;
 
 use HTTP::Response;
 
@@ -236,7 +238,21 @@ sub make_request {
         my $response =
             $self->_modify_response_cache_control($forwarded_resp);
         
-        return $response;
+        return $response
+    } else {
+        # add the default Cache-Control request header-field
+        my $forwarded_rqst =
+            $self->_modify_request_cache_control($presented_request);
+        
+        my $forwarded_resp = $self->_forward($forwarded_rqst, @params);
+        
+        $self->_store_request_with_response($forwarded_rqst, $forwarded_resp);
+        
+        # add the default Cache-Control response header-field
+        my $response =
+            $self->_modify_response_cache_control($forwarded_resp);
+        
+        return $response
     }
     
     # How did we end up here ?
@@ -249,15 +265,55 @@ sub make_request {
 sub _forward {
     my $self = shift;
     
-    my $forward_rqst = shift;
+    my $forwarded_rqst = shift;
     
-    my $forward_resp = $self->forwarder->($forward_rqst, @_);
+    my $forwarded_resp = $self->forwarder->($forwarded_rqst, @_);
     
     croak __PACKAGE__
-        . " response from forwarder is not a HTTP::Response [$forward_resp]"
-        unless $forward_resp->isa('HTTP::Response');
+        . " response from forwarder is not a HTTP::Response [$forwarded_resp]"
+        unless $forwarded_resp->isa('HTTP::Response');
     
-    return $forward_resp;
+    return $forwarded_resp;
+}
+
+sub _store_request_with_response {
+    my $self        = shift;
+    my $rqst        = shift;
+    my $resp        = shift;
+    
+    # store the response content on it's own
+    my $content_key = $self->_store_response_content($resp);
+    my $request_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
+    
+    # strip the request and response from their content, not used during checks
+    my $rqst_clone = $rqst->clone;
+    $rqst_clone->content(undef);
+    my $resp_clone = $resp->clone;
+    $resp_clone->content(undef);
+    
+    $self->cache->set($request_key,
+        {
+            stripped_rqst   => $rqst_clone,
+            stripped_resp   => $resp_clone,
+            content_key     => $content_key
+        }
+    );
+    
+}
+
+sub _store_response_content {
+    my $self        = shift;
+    my $resp        = shift;
+    
+    my $content_key = Digest::MD5::md5_hex(Time::HiRes::time());
+    
+    eval { $self->cache->set( $content_key, $resp->content() ) };
+    return $content_key unless $@;
+    
+    croak __PACKAGE__
+        . " could not store content in cache with key [$content_key], $@";
+    
+    return
 }
 
 sub _modify_request_cache_control {
