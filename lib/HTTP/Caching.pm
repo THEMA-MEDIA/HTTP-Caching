@@ -316,6 +316,37 @@ sub _store_content {
     return
 }
 
+sub _retrieve_response_for_request {
+    my $self        = shift;
+    my $rqst        = shift;
+    
+    my $request_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
+    my $meta_data   = $self->cache->get( $request_key );
+    my $content_key = $meta_data->{content_key};
+    
+    my $content = $self->_retrieve_content($content_key);
+    
+    my $resp = $meta_data->{stripped_resp};
+    my $resp_clone = $resp->clone;
+    
+    $resp_clone->content($content);
+    
+    return $resp_clone
+}
+
+sub _retrieve_content {
+    my $self        = shift;
+    my $content_key = shift;
+    
+    my $content = eval { $self->cache->get( $content_key ) };
+    return $content unless $@;
+    
+    croak __PACKAGE__
+        . " could not retrieve content from cache with key [$content_key], $@";
+    
+    return
+}
+
 sub _modify_request_cache_control {
     my $self        = shift;
     my $rqst        = shift;
