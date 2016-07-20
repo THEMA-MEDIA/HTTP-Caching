@@ -9,8 +9,8 @@ subtest 'Simple modifiactions' => sub {
     plan tests => 3;
     
     my $http_caching =
-    new_ok('HTTP::Caching', [
-            cache                   => undef,
+        new_ok('HTTP::Caching', [
+            cache                   => undef, # no cache needed for these tests
             cache_type              => 'private',
             cache_control_request   => 'min-fresh=60',
             cache_control_response  => 'must-revalidate',

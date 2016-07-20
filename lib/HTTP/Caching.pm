@@ -296,8 +296,7 @@ sub _store_request_with_response {
     my $resp_clone = $resp->clone;
     $resp_clone->content(undef);
     
-    $self->cache->set($request_key,
-        {
+    $self->cache->set( $request_key => {
             stripped_rqst   => $rqst_clone,
             stripped_resp   => $resp_clone,
             content_key     => $content_key
@@ -312,7 +311,7 @@ sub _store_content {
     
     my $content_key = Digest::MD5::md5_hex(Time::HiRes::time());
     
-    eval { $self->cache->set( $content_key, $content ) };
+    eval { $self->cache->set( $content_key => $content ) };
     return $content_key unless $@;
     
     croak __PACKAGE__

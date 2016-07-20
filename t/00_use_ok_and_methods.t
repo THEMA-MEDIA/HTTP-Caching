@@ -107,6 +107,19 @@ subtest 'HTTP::Caching forwarding' => sub {
     eval {$errs_caching->make_request($request) };
     like($@, qr/HTTP::Caching response from forwarder/,
         '... but do not allow bad responses');
-
-
 };
+
+=pod
+
+501 Not Implemented is a 'by default' cachable response
+
+See RFC 7234 Section 3.     Storing Responses in Cach
+                              The response either has ... a statuscode
+    RFC 7234 Section 4.2.2. Calculating Heuristic Freshness
+    RFC 7231 Section 6.1.   Overview of Status Codes
+                     6.6.2. 501 Not Implemented
+
+This means that without any other Cache-control directives, or Expires or
+Last-Modified, this response can always be stored in the cache
+
+=cut
