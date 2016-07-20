@@ -240,6 +240,11 @@ sub make_request {
         
         return $response
     } else {
+        # check if there is a cached version
+        my $chi_cache_resp =
+            $self->_retrieve_response_for_request($presented_request);
+        return $chi_cache_resp if $chi_cache_resp;
+        
         # add the default Cache-Control request header-field
         my $forwarded_rqst =
             $self->_modify_request_cache_control($presented_request);
@@ -312,6 +317,41 @@ sub _store_content {
     
     croak __PACKAGE__
         . " could not store content in cache with key [$content_key], $@";
+    
+    return
+}
+
+sub _retrieve_response_for_request {
+    my $self        = shift;
+    my $rqst        = shift;
+    
+    # check cache for stored meta-data 
+    my $request_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
+    my $meta_data   = $self->cache->get( $request_key );
+    return unless $meta_data;
+    
+    # check cache for content
+    my $content_key = $meta_data->{content_key};
+    my $content = $self->_retrieve_content($content_key);
+    return unless $content;
+    
+    # compose response
+    my $resp = $meta_data->{stripped_resp};
+    my $resp_clone = $resp->clone;
+    $resp_clone->content($content);
+    
+    return $resp_clone
+}
+
+sub _retrieve_content {
+    my $self        = shift;
+    my $content_key = shift;
+    
+    my $content = eval { $self->cache->get( $content_key ) };
+    return $content unless $@;
+    
+    croak __PACKAGE__
+        . " could not retrieve content from cache with key [$content_key], $@";
     
     return
 }
