@@ -8,6 +8,8 @@ use HTTP::Response;
 subtest 'Simple modifiactions' => sub {
     plan tests => 3;
     
+    my $forwarded_rqst;
+    
     my $http_caching =
         new_ok('HTTP::Caching', [
             cache                   => undef, # no cache needed for these tests
@@ -15,12 +17,8 @@ subtest 'Simple modifiactions' => sub {
             cache_control_request   => 'min-fresh=60',
             cache_control_response  => 'must-revalidate',
             forwarder               => sub {
-                my $forward_rqst = shift;
-                my $directive = $forward_rqst->header('cache-control');
-                
-                is($directive, 'min-fresh=60', 'modified request');
-                
-                return HTTP::Response->new(100)
+                $forwarded_rqst = shift;
+                return HTTP::Response->new(501)
             },
         ] , 'my $http_caching'
     );
@@ -30,7 +28,10 @@ subtest 'Simple modifiactions' => sub {
     
     my $response = $http_caching->make_request($request);
     
-    my $directive = $response->header('cache-control');
-    is($directive, 'must-revalidate', 'modified response');
+    is($forwarded_rqst->header('cache-control'), 'min-fresh=60',
+        "modified request");
+    
+    is($response->header('cache-control'), 'must-revalidate',
+        "modified response");
     
 }
