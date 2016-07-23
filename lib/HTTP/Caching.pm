@@ -229,35 +229,43 @@ sub make_request {
     
     unless ($self->cache) {
         # add the default Cache-Control request header-field
-        my $forwarded_rqst =
-            $self->_modify_request_cache_control($presented_request);
+        my $modified_rqst = $presented_request->clone;
+        $modified_rqst->headers->push_header(
+            cache_control => $self->cache_control_request,
+        ) if $self->cache_control_request();
         
-        my $forwarded_resp = $self->_forward($forwarded_rqst, @params);
+        my $forwarded_resp = $self->_forward($modified_rqst, @params);
         
         # add the default Cache-Control response header-field
-        my $response =
-            $self->_modify_response_cache_control($forwarded_resp);
+        my $modified_resp = $forwarded_resp->clone;
+        $modified_resp->headers->push_header(
+            cache_control => $self->cache_control_response,
+        ) if $self->cache_control_request;
         
-        return $response
+        return $modified_resp
     } else {
+        # add the default Cache-Control request header-field
+        my $modified_rqst = $presented_request->clone;
+        $modified_rqst->headers->push_header(
+            cache_control => $self->cache_control_request,
+        ) if $self->cache_control_request();
+
         # check if there is a cached version
         my $chi_cache_resp =
-            $self->_retrieve_response_for_request($presented_request);
+            $self->_retrieve_response_for_request($modified_rqst);
         return $chi_cache_resp if $chi_cache_resp;
         
-        # add the default Cache-Control request header-field
-        my $forwarded_rqst =
-            $self->_modify_request_cache_control($presented_request);
+        my $forwarded_resp = $self->_forward($modified_rqst, @params);
         
-        my $forwarded_resp = $self->_forward($forwarded_rqst, @params);
-        
-        $self->_store_request_with_response($forwarded_rqst, $forwarded_resp);
+        $self->_store_request_with_response($modified_rqst, $forwarded_resp);
         
         # add the default Cache-Control response header-field
-        my $response =
-            $self->_modify_response_cache_control($forwarded_resp);
+        my $modified_resp = $forwarded_resp->clone;
+        $modified_resp->headers->push_header(
+            cache_control => $self->cache_control_response,
+        ) if $self->cache_control_request;
         
-        return $response
+        return $modified_resp
     }
     
     # How did we end up here ?
@@ -353,89 +361,6 @@ sub _retrieve_content {
         . " could not retrieve content from cache with key [$content_key], $@";
     
     return
-}
-
-sub _modify_request_cache_control {
-    my $self        = shift;
-    my $rqst        = shift;
-    
-    my $modified_header = $self->_modify_cache_control_header(
-        $rqst->headers,
-        $self->cache_control_request,
-    );
-    
-    my $modified_rqst =
-        $self->_substitute_request_header( $rqst, $modified_header );
-    
-    return $modified_rqst
-}
-
-sub _modify_response_cache_control {
-    my $self        = shift;
-    my $resp        = shift;
-    
-    my $modified_header = $self->_modify_cache_control_header(
-        $resp->headers,
-        $self->cache_control_response,
-    );
-    
-    my $modified_resp =
-        $self->_substitute_response_header( $resp, $modified_header );
-    
-    return $modified_resp
-    
-}
-
-sub _modify_cache_control_header {
-    my $self        = shift;
-    my $header      = shift->clone;
-    my $directives  = shift;
-    
-    if ($directives) {
-        $header->header('Cache-Control' => $directives) # TODO This is over symplified
-    }
-    
-    return $header;
-}
-
-sub _substitute_request_header {
-    my $self        = shift;
-    my $rqst        = shift;
-    my $head        = shift;
-    
-    # unraffle the HTTP::Request
-    my $rqst_method     = $rqst->method;
-    my $rqst_uri        = $rqst->uri;
-#   my $rqst_headers    = $rqst->headers; # we'll substitute this
-    my $rqst_content    = $rqst->content;
-    
-    return
-        !$head ?
-            HTTP::Request->new( $rqst_method, $rqst_uri ) :
-        !$rqst_content ?
-            HTTP::Request->new( $rqst_method, $rqst_uri, $head ) :
-            HTTP::Request->new( $rqst_method, $rqst_uri, $head, $rqst_content )
-    
-}
-
-sub _substitute_response_header {
-    my $self        = shift;
-    my $resp        = shift;
-    my $head        = shift;
-    
-    # unraffle the HTTP::Request
-    my $resp_code       = $resp->code;
-    my $resp_msg        = $resp->message;
-#   my $resp_headers    = $resp->headers; # we'll substitute this
-    my $resp_content    = $resp->content;
-    
-    return
-        !$head ?
-            HTTP::Response->new( $resp_code, $resp_msg ) :
-        !$resp_content ?
-            HTTP::Response->new( $resp_code, $resp_msg, $head ) :
-            HTTP::Response->new( $resp_code, $resp_msg, $head, $resp_content )
-    
 }
 
 1;
