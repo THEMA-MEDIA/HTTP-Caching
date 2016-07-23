@@ -226,52 +226,33 @@ sub make_request {
         unless $presented_request->isa('HTTP::Request');
     
     my @params = @_;
+
+    # add the default Cache-Control request header-field
+    $presented_request->headers->push_header(
+        cache_control => $self->cache_control_request,
+    ) if $self->cache_control_request();
+    
+    my $response;
     
     unless ($self->cache) {
-        # add the default Cache-Control request header-field
-        my $modified_rqst = $presented_request->clone;
-        $modified_rqst->headers->push_header(
-            cache_control => $self->cache_control_request,
-        ) if $self->cache_control_request();
-        
-        my $forwarded_resp = $self->_forward($modified_rqst, @params);
-        
-        # add the default Cache-Control response header-field
-        my $modified_resp = $forwarded_resp->clone;
-        $modified_resp->headers->push_header(
-            cache_control => $self->cache_control_response,
-        ) if $self->cache_control_request;
-        
-        return $modified_resp
+        $response = $self->_forward($presented_request, @params);
     } else {
-        # add the default Cache-Control request header-field
-        my $modified_rqst = $presented_request->clone;
-        $modified_rqst->headers->push_header(
-            cache_control => $self->cache_control_request,
-        ) if $self->cache_control_request();
-
-        # check if there is a cached version
-        my $chi_cache_resp =
-            $self->_retrieve_response_for_request($modified_rqst);
-        return $chi_cache_resp if $chi_cache_resp;
-        
-        my $forwarded_resp = $self->_forward($modified_rqst, @params);
-        
-        $self->_store_request_with_response($modified_rqst, $forwarded_resp);
-        
-        # add the default Cache-Control response header-field
-        my $modified_resp = $forwarded_resp->clone;
-        $modified_resp->headers->push_header(
-            cache_control => $self->cache_control_response,
-        ) if $self->cache_control_request;
-        
-        return $modified_resp
+        if (my $chi_cache_resp =
+            $self->_retrieve_response_for_request($presented_request)
+        ) {
+            $response = $chi_cache_resp;
+        } else {
+            $response = $self->_forward($presented_request, @params);
+            $self->_store_request_with_response($presented_request, $response);
+        }
     }
     
-    # How did we end up here ?
-    carp __PACKAGE__
-        . 'runaway';
-    return HTTP::Response->new(500, "Oops, HTTP::Caching runaway");
+     # add the default Cache-Control response header-field
+    $response->headers->push_header(
+        cache_control => $self->cache_control_response,
+    ) if $self->cache_control_request;
+   
+    return $response;
     
 }
 
