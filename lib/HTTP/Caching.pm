@@ -2,9 +2,15 @@ package HTTP::Caching;
 
 =head1 NAME
 
-HTTP::Caching
+HTTP::Caching - The RFC 7234 compliant brains to do caching right
+
+=head1 VERSION
+
+Version 0.01 Alpha 01
 
 =cut
+
+our $VERSION = '0.01_01';
 
 use strict;
 use warnings;
@@ -12,8 +18,6 @@ use warnings;
 use Carp;
 use Digest::MD5;
 use Time::HiRes;
-
-use HTTP::Response;
 
 # Since we have dependencies
 use Moo;
