@@ -217,13 +217,14 @@ another 5XX Error.
 sub make_request {
     my $self = shift;
     
-    my $presented_request = shift;
     croak __PACKAGE__
         . " missing request"
-        unless defined $presented_request;
+        unless defined $_[0];
     croak __PACKAGE__
-        . " request is not a HTTP::Request [$presented_request]"
-        unless $presented_request->isa('HTTP::Request');
+        . " request is not a HTTP::Request [$_[0]]"
+        unless $_[0]->isa('HTTP::Request');
+    
+    my $presented_request = shift->clone;
     
     my @params = @_;
 
