@@ -18,6 +18,7 @@ WriteMakefile(
         'Test::Most'                    => 0,
         'HTTP::Request'                 => 0,
         'HTTP::Response'                => 0,
+        'Readonly'                      => 0,
     },
     PREREQ_PM => {
         'CHI'                           => 0,
