@@ -6,8 +6,14 @@ use HTTP::Request;
 use HTTP::Response;
 
 subtest 'Simple modifiactions' => sub {
-    plan tests => 3;
+    plan tests => 5;
     
+    
+    my $request = HTTP::Request->new();
+    $request->method('TEST');
+    my $response;
+    
+    my $forwarded_resp = HTTP::Response->new(501);
     my $forwarded_rqst;
     
     my $http_caching =
@@ -18,15 +24,12 @@ subtest 'Simple modifiactions' => sub {
             cache_control_response  => 'must-revalidate',
             forwarder               => sub {
                 $forwarded_rqst = shift;
-                return HTTP::Response->new(501)
+                return $forwarded_resp->clone;
             },
         ] , 'my $http_caching'
     );
     
-    my $request = HTTP::Request->new();
-    $request->method('TEST');
-    
-    my $response = $http_caching->make_request($request);
+    $response = $http_caching->make_request($request);
     
     is($forwarded_rqst->header('cache-control'), 'min-fresh=60',
         "modified request");
@@ -34,4 +37,17 @@ subtest 'Simple modifiactions' => sub {
     is($response->header('cache-control'), 'must-revalidate',
         "modified response");
     
+    # add some pre set cache-control directives
+    $request->headers->push_header( cache_control => 'max-age=3600');
+    $forwarded_resp->headers->push_header( cache_control => 'no-store');
+    
+    $response = $http_caching->make_request($request);
+    
+    is($forwarded_rqst->header('cache-control'), 'max-age=3600, min-fresh=60',
+        "modified request with existing directives");
+    
+    is($response->header('cache-control'), 'no-store, must-revalidate',
+        "modified response with existing directives");
+    
+
 }
