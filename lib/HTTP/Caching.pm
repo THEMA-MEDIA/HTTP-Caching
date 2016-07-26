@@ -6,11 +6,11 @@ HTTP::Caching - The RFC 7234 compliant brains to do caching right
 
 =head1 VERSION
 
-Version 0.01 Alpha 01
+Version 0.01 Alpha 02
 
 =cut
 
-our $VERSION = '0.01_01';
+our $VERSION = '0.01_02';
 
 use strict;
 use warnings;
@@ -226,7 +226,7 @@ sub make_request {
         unless defined $_[0];
     croak __PACKAGE__
         . " request is not a HTTP::Request [$_[0]]"
-        unless $_[0]->isa('HTTP::Request');
+        unless UNIVERSAL::isa($_[0],'HTTP::Request');
     
     my $presented_request = shift->clone;
     
@@ -270,7 +270,7 @@ sub _forward {
     
     croak __PACKAGE__
         . " response from forwarder is not a HTTP::Response [$forwarded_resp]"
-        unless $forwarded_resp->isa('HTTP::Response');
+        unless UNIVERSAL::isa($forwarded_resp,'HTTP::Response');
     
     return $forwarded_resp;
 }
