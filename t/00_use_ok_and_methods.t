@@ -1,6 +1,6 @@
 use Test::Most tests => 4;
+use Test::MockObject;
 
-use CHI;
 use HTTP::Request;
 use HTTP::Response;
 
@@ -9,27 +9,21 @@ subtest 'HTTP::Caching' => sub {
     use_ok('HTTP::Caching');
 };
 
-my $chi_cache = CHI->new(
-    driver                  => 'File',
-    root_dir                => '/tmp/HTTP_Caching',
-    file_extension          => '.cache',
-    l1_cache                => {
-        driver                  => 'Memory',
-        global                  => 1,
-        max_size                => 1024*1024
-    }
-);
+# mock cache
+my %cache;
+my $mocked_cache = Test::MockObject->new;
+$mocked_cache->mock( set => sub { } );
+$mocked_cache->mock( get => sub { } );
 
 my $request = HTTP::Request->new();
 $request->method('TEST'); # yep, does not exists, thats fine
-
 
 subtest 'Instantiating HTTP::Caching object' => sub {
     plan tests => 1;
     
     my $http_caching =
     new_ok('HTTP::Caching', [
-            cache                   => $chi_cache,
+            cache                   => $mocked_cache,
             cache_type              => 'private',
             cache_request_control   => 'max-age=3600',
             forwarder               => sub { return HTTP::Response->new(501) }

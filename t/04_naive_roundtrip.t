@@ -1,8 +1,8 @@
 use Test::Most tests => 4;
+use Test::MockObject;
 
 use HTTP::Caching;
 
-use CHI;
 use HTTP::Request;
 use HTTP::Response;
 
@@ -13,15 +13,11 @@ Readonly my $URI_LOCATION   => 'file:///tmp/HTTP_Cacing/greetings.txt';
 Readonly my $URI_MD5        => '7d3d0fc115036f144964caafaf2c7df2';
 Readonly my $CONTENT_KEY    => '3e5f1b953da8430c6f88b90ac15d78fa'; # or whatever
 
-my $chi_cache = CHI->new(
-    driver                  => 'Memory',
-    global                  => 0,
-    l1_cache                => {
-        driver                  => 'Memory',
-        global                  => 0,
-        max_size                => 1024*1024
-    }
-);
+# mock cache
+my %cache;
+my $mocked_cache = Test::MockObject->new;
+$mocked_cache->mock( set => sub { $cache{$_[1]} = $_[2] } );
+$mocked_cache->mock( get => sub { return $cache{$_[1]} } );
 
 my $request = HTTP::Request->new();
 $request->method('TEST');
@@ -35,7 +31,7 @@ $forwarded_resp->content('Who is there?');
 my $forwarded_rqst = undef; # flag to be set if we do forward the request
 
 my $http_caching = HTTP::Caching->new(
-    cache                   => $chi_cache,
+    cache                   => $mocked_cache,
     cache_type              => 'private',
     forwarder               => sub {
         $forwarded_rqst = shift;
@@ -54,6 +50,6 @@ $forwarded_rqst = undef;
 my $response_two = $http_caching->make_request($request);
 is ($forwarded_rqst, undef,
     "Request has not been forwarded for the second time");
-is ($response_one->content(), 'Who is there?',
+is ($response_two->content(), 'Who is there?',
     "... and response two is as expected" );
 
