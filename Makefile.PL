@@ -16,12 +16,12 @@ WriteMakefile(
     },
     BUILD_REQUIRES => {
         'Test::Most'                    => 0,
+        'Test::MockObject'              => 0,
         'HTTP::Request'                 => 0,
         'HTTP::Response'                => 0,
         'Readonly'                      => 0,
     },
     PREREQ_PM => {
-        'CHI'                           => 0,
         'Carp'                          => 0,
         'Digest::MD5'                   => 0,
         'Time::HiRes'                   => 0,
