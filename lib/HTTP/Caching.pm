@@ -53,7 +53,7 @@ use MooX::Types::MooseLike::Base ':all';
 has cache => (
     is          => 'ro',
     required    => 0,
-    isa         => Maybe[ ConsumerOf['CHI::Driver::Role::HasSubcaches'] ],
+    isa         => Maybe[ HasMethods['set', 'get'] ],
     builder     => sub {
         warn __PACKAGE__ . " without cache, forwards requests and responses\n";
         return undef
@@ -242,13 +242,13 @@ sub make_request {
     unless ($self->cache) {
         $response = $self->_forward($presented_request, @params);
     } else {
-        if (my $chi_cache_resp =
-            $self->_retrieve_response_for_request($presented_request)
+        if (my $cache_resp =
+            $self->_retrieve($presented_request)
         ) {
-            $response = $chi_cache_resp;
+            $response = $cache_resp;
         } else {
             $response = $self->_forward($presented_request, @params);
-            $self->_store_request_with_response($presented_request, $response);
+            $self->_store($presented_request, $response);
         }
     }
     
@@ -275,78 +275,27 @@ sub _forward {
     return $forwarded_resp;
 }
 
-sub _store_request_with_response {
+sub _store {
     my $self        = shift;
     my $rqst        = shift;
     my $resp        = shift;
     
-    # store the response content on it's own
-    my $content_key = $self->_store_content($resp->content);
     my $request_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
     
-    # strip the request and response from their content, not used during checks
-    my $rqst_clone = $rqst->clone;
-    $rqst_clone->content(undef);
-    my $resp_clone = $resp->clone;
-    $resp_clone->content(undef);
+    $self->cache->set( $request_key => $resp );
     
-    $self->cache->set( $request_key => {
-            stripped_rqst   => $rqst_clone,
-            stripped_resp   => $resp_clone,
-            content_key     => $content_key
-        }
-    );
-    
+    return $request_key;
 }
 
-sub _store_content {
-    my $self        = shift;
-    my $content     = shift;
-    
-    my $content_key = Digest::MD5::md5_hex(Time::HiRes::time());
-    
-    eval { $self->cache->set( $content_key => $content ) };
-    return $content_key unless $@;
-    
-    croak __PACKAGE__
-        . " could not store content in cache with key [$content_key], $@";
-    
-    return
-}
-
-sub _retrieve_response_for_request {
+sub _retrieve {
     my $self        = shift;
     my $rqst        = shift;
     
-    # check cache for stored meta-data 
     my $request_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
-    my $meta_data   = $self->cache->get( $request_key );
-    return unless $meta_data;
     
-    # check cache for content
-    my $content_key = $meta_data->{content_key};
-    my $content = $self->_retrieve_content($content_key);
-    return unless $content;
+    my $resp = $self->cache->get( $request_key );
     
-    # compose response
-    my $resp = $meta_data->{stripped_resp};
-    my $resp_clone = $resp->clone;
-    $resp_clone->content($content);
-    
-    return $resp_clone
-}
-
-sub _retrieve_content {
-    my $self        = shift;
-    my $content_key = shift;
-    
-    my $content = eval { $self->cache->get( $content_key ) };
-    return $content unless $@;
-    
-    croak __PACKAGE__
-        . " could not retrieve content from cache with key [$content_key], $@";
-    
-    return
+    return $resp;
 }
 
 1;
