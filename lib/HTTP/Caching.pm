@@ -6,11 +6,11 @@ HTTP::Caching - The RFC 7234 compliant brains to do caching right
 
 =head1 VERSION
 
-Version 0.01 Alpha 02
+Version 0.01 Alpha 03
 
 =cut
 
-our $VERSION = '0.01_02';
+our $VERSION = '0.01_03';
 
 use strict;
 use warnings;
@@ -19,7 +19,6 @@ use Carp;
 use Digest::MD5;
 use Time::HiRes;
 
-# Since we have dependencies
 use Moo;
 use MooX::Types::MooseLike::Base ':all';
 
@@ -134,7 +133,7 @@ The above is a over-simplified version of the RFC
 
 =cut
 
-=head1 METHODS
+=head1 CONSTRUCTORS
 
 =head2 new
 
@@ -148,26 +147,38 @@ The above is a over-simplified version of the RFC
 Constructs a new C<HTTP::Caching> object that knows how to find cached responses
 and will forward if needed.
 
-The following attributes are used:
+=head1 ATRRIBUTES
+
+=head2 cache
+
+Cache must be an object that MUST implement two methods
 
 =over
 
-=item cache
+=item sub set ($key, $data)
 
-A L<CHI> compatible cache. To have most benifits from a cache, it could be
-stored on a files-system if you like to have it between processes. A L1 Cache is
-very useful because of the way HTTP Caching has to handle the responses. Since
-it is possible that there are multiple responses associated with a specific URI,
-it needs to inspect all variants and if needed, validate against the upstream
-server. After the response comes back, it then needs to reselct a stored
-response, based on the the recieved response. The L1-cache will only be used
-for the request and response headers, the actual response body or the payload
-will be stored in the primary cache, on filesystem.
+to store data in the cache
 
-See L<CHI> for more information about creating a cache. The one shown in the
-synopsis is a good starter.
+=item sub get ($key)
 
-=item cache_type
+to retrieve the data stored under the key
+
+=back
+
+This can be as simple as a hash, like we use in the tests:
+
+    use Test::MockObject;
+    
+    my %cache;
+    my $mocked_cache = Test::MockObject->new;
+    $mocked_cache->mock( set => sub { $cache{$_[1]} = $_[2] } );
+    $mocked_cache->mock( get => sub { return $cache{$_[1]} } );
+
+But very convenient is to use L<CHI>, which implements both required methods and
+also has the option to use a L1 cache to speed things up even more. See the
+SYNOPSIS for an example
+
+=head2 cache_type
 
 This must either be C<'private'> or C<'public'>. For most L<LWP::UserAgents>, it
 can be C<'private'> as it will probably not be shared with other processes on
@@ -179,18 +190,18 @@ Responses to Authenticated request should not be held in public caches and also
 those responses that specifacally have their cache-control headerfield set to
 C<'private'>.
 
-=item cache_control_request
+=head2 cache_control_request
 
 A string that contains the Cache-control header-field settings that will be sent
 as default with the request. So you do not have to set those each time. See
 RFC 7234 Section 5.2.1 for the list of available cache-control directives.
 
-=item cache_control_response
+=head2 cache_control_response
 
 Like the above, but those will be set for each response. This is useful for
 server side caching. See RFC 7234 Section 5.2.2.
 
-=item forwarder
+=head2 forwarder
 
 This CodeRef must be a callback function that accepts a L<HTTP::Request> and
 returns a L<HTTP::Response>. Since this module does not know how to do a request
@@ -202,7 +213,7 @@ extra directives from C<cache_request>).
 Failing to return a C<HTTP::Response> might cause the module to die or generate
 a response itself with status code C<502 Bad Gateway>. 
 
-=back
+=head1 METHODS
 
 =head2 make_request
 
