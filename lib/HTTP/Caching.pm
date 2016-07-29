@@ -309,4 +309,104 @@ sub _retrieve {
     return $resp;
 }
 
+# _may_store_in_cache()
+#
+# based on some headers in the request, but mostly on those in the new response
+# the cache can hold a copy of it or not.
+#
+# see RFC 7234 Section 3: Storing Responses in Caches
+#
+sub _may_store_in_cache {
+    my $self = shift;
+    my $rqst = shift;
+    my $resp = shift;
+    
+    my @rqst_directives = $rqst->header('Cache-control');
+    my @resp_directives = $resp->header('Cache-Control');
+    
+    
+    #                                               RFC 7234 Section 3
+    #
+    # A cache MUST NOT store a response to any request, unless:
+    
+    #                                               RFC 7234 Section 3 #1
+    #
+    # the request method is understood by the cache and defined as being
+    # cacheable
+    #
+#   TODO
+    
+    
+    #                                               RFC 7234 Section 3 #2
+    #
+    # the response status code is understood by the cache
+    #
+#   TODO
+    
+    
+    #                                               RFC 7234 Section 3 #3
+    #
+    # the "no-store" cache directive (see Section 5.2) does not appear
+    # in request or response header fields
+    #
+#   TODO
+    
+    
+    #                                               RFC 7234 Section 3 #4
+    #
+    # the "private" response directive (see Section 5.2.2.6) does not
+    # appear in the response, if the cache is shared
+    #
+#   TODO
+    
+    
+    #                                               RFC 7234 Section 3 #5
+    #
+    # the Authorization header field (see Section 4.2 of [RFC7235]) does
+    # not appear in the request, if the cache is shared, unless the
+    # response explicitly allows it (see Section 3.2)
+    #
+#   TODO
+    
+    
+    #                                               RFC 7234 Section 3 #6
+    #
+    # the response either:
+    #
+    # - contains an Expires header field (see Section 5.3)
+    #
+#   TODO
+    
+    
+    # - contains a max-age response directive (see Section 5.2.2.8)
+    #
+#   TODO
+    
+    
+    # - contains a s-maxage response directive (see Section 5.2.2.9)
+    #   and the cache is shared
+    #
+#   TODO
+    
+    
+    # - contains a Cache Control Extension (see Section 5.2.3) that
+    #   allows it to be cache
+    #
+#   TODO
+    
+    
+    # - has a status code that is defined as cacheable by default (see
+    #   Section 4.2.2)
+    #
+#   TODO
+    
+    
+    # - contains a public response directive (see Section 5.2.2.5)
+    #
+#   TODO
+    
+    
+    return undef;
+}
+
 1;
