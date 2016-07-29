@@ -1,8 +1,8 @@
-use Test::Most tests => 6;
+use Test::Most tests => 3;
+use Test::MockObject;
 
 use HTTP::Caching;
 
-use CHI;
 use HTTP::Request;
 use HTTP::Response;
 
@@ -12,15 +12,11 @@ use Readonly;
 Readonly my $URI_LOCATION  => 'file:///tmp/HTTP_Cacing/greetings.txt';
 Readonly my $URI_MD5       => '7d3d0fc115036f144964caafaf2c7df2';
 
-my $chi_cache = CHI->new(
-    driver                  => 'Memory',
-    global                  => 1,
-    l1_cache                => {
-        driver                  => 'Memory',
-        global                  => 0,
-        max_size                => 1024*1024
-    }
-);
+# mock cache
+my %cache;
+my $mocked_cache = Test::MockObject->new;
+$mocked_cache->mock( set => sub { $cache{$_[1]} = $_[2] } );
+$mocked_cache->mock( get => sub { } );
 
 my $request = HTTP::Request->new();
 $request->method('TEST'); # yep, does not exists, thats fine
@@ -31,7 +27,7 @@ my $forwarded_resp = HTTP::Response->new(501);
 $forwarded_resp->content('Who is there?');
 
 my $http_caching = HTTP::Caching->new(
-    cache                   => $chi_cache,
+    cache                   => $mocked_cache,
     cache_type              => 'private',
     forwarder               => sub { return $forwarded_resp }
 );
@@ -39,22 +35,11 @@ my $http_caching = HTTP::Caching->new(
 # don't care about responses, we only want to store in the cache
 $http_caching->make_request($request);
 
-my $stored_l1 = $chi_cache->get($URI_MD5);
-# do we have the three keys ?
+ok (exists $cache{$URI_MD5}, 
+    'stored under the right key');
 
-isa_ok ($stored_l1->{stripped_rqst}, 'HTTP::Request',
-    '... stored request');
-is ($stored_l1->{stripped_rqst}->content, undef,
-    '... that has been stripped');
+isa_ok ($cache{$URI_MD5}, 'HTTP::Response',
+    '... a HTTP::Request object');
 
-isa_ok ($stored_l1->{stripped_resp}, 'HTTP::Response',
-    '... stored response');
-is ($stored_l1->{stripped_resp}->content, undef,
-    '... that has been stripped');
-
-is ($stored_l1->{stripped_resp}->code, '501',
-    '... response status-code is "Not Implemented"');
-
-is ($chi_cache->get( $stored_l1->{content_key} ), 'Who is there?',
-    'Stored response content as expected' );
-
+is ($cache{$URI_MD5}->content, 'Who is there?',
+    '... with the right contnet');
