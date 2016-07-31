@@ -24,9 +24,10 @@ WriteMakefile(
     PREREQ_PM => {
         'Carp'                          => 0,
         'Digest::MD5'                   => 0,
-        'Time::HiRes'                   => 0,
+        'HTTP::Method'                  => 0,
         'Moo'                           => 0,
         'MooX::Types::MooseLike::Base'  => 0,
+        'Time::HiRes'                   => 0,
     },
     dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean => { FILES => 'HTTP-Caching-*' },

@@ -6,17 +6,18 @@ HTTP::Caching - The RFC 7234 compliant brains to do caching right
 
 =head1 VERSION
 
-Version 0.01 Alpha 03
+Version 0.02 Alpha 01
 
 =cut
 
-our $VERSION = '0.01_03';
+our $VERSION = '0.02_01';
 
 use strict;
 use warnings;
 
 use Carp;
 use Digest::MD5;
+use HTTP::Method;
 use Time::HiRes;
 
 use Moo;
@@ -334,8 +335,12 @@ sub _may_store_in_cache {
     # the request method is understood by the cache and defined as being
     # cacheable
     #
-#   TODO
-    
+    {
+        my $method = eval { HTTP::Method->new($rqst->method) };
+        
+        return 0 unless $method;
+        return 0 unless $method->is_method_cachable;
+    }
     
     #                                               RFC 7234 Section 3 #2
     #
