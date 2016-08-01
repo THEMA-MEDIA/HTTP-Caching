@@ -2,13 +2,15 @@ use Test::Most tests => 2;
 
 use HTTP::Caching;
 
+$HTTP::Caching::DEBUG = 1;
+
 use HTTP::Method;
 use HTTP::Request;
 use HTTP::Response;
 
 subtest "Request Methods and Responses are understood" => sub {
     
-    plan tests => 4;
+    plan tests => 7;
     
     my $rqst = HTTP::Request->new();
     my $resp = HTTP::Response->new();
@@ -16,24 +18,31 @@ subtest "Request Methods and Responses are understood" => sub {
     
     $rqst->method('DEL');
     
-    $test = HTTP::Caching->_may_store_in_cache($rqst, $resp);
-    ok ( ( $test == 0),
-        "NO CACHE: DEL is not understood" );
+    warning_like { $test = HTTP::Caching->_may_store_in_cache($rqst, $resp) }
+        { carped => qr/NO CACHE: method is not understood/ },
+        "NO CACHE: method is not understood";
+    ok ( (defined $test and $test == 0),
+        "... and returns 0" );
     
     
     $rqst->method('PUT');
     
-    $test = HTTP::Caching->_may_store_in_cache($rqst, $resp);
+    warning_like { $test = HTTP::Caching->_may_store_in_cache($rqst, $resp) }
+        { carped => qr/NO CACHE: method is not cachable/ },
+        "NO CACHE: method is not cachable";
     ok ( (defined $test and $test == 0),
-        "NO CACHE: PUT is not cachable" );
+        "... and returns 0" );
     
     
     $rqst->method('HEAD');
     $resp->code(999);
     
-    $test = HTTP::Caching->_may_store_in_cache($rqst, $resp);
+    warning_like { $test = HTTP::Caching->_may_store_in_cache($rqst, $resp) }
+        { carped => qr/NO CACHE: response status code is not understood/ },
+        "NO CACHE: response status code is not understood";
     ok ( (defined $test and $test == 0),
-        "NO CACHE: 999 is not understood" );
+        "... and returns 0" );
+    
     
     $resp->code(501); # Not Implemented
     
@@ -45,7 +54,7 @@ subtest "Request Methods and Responses are understood" => sub {
 
 subtest "Cache-Control directives" => sub {
     
-    plan tests => 2;
+    plan tests => 4;
     
     my $rqst = HTTP::Request->new();
     my $resp = HTTP::Response->new();
@@ -56,16 +65,20 @@ subtest "Cache-Control directives" => sub {
     
     $resp->code(501);
     
-    $test = HTTP::Caching->_may_store_in_cache($rqst, $resp);
+    warning_like { $test = HTTP::Caching->_may_store_in_cache($rqst, $resp) }
+        { carped => qr/NO CACHE: 'no-store' appears in request/ },
+        "NO CACHE: 'no-store' appears in request cache directives";
     ok ( (defined $test and $test == 0),
-        "NO CACHE: 'no-store' in cache directive for Request" );
+        "... and returns 0" );
     
     
     $rqst->header(cache_control => undef);
     $resp->header(cache_control => 'no-store, no-idea');
 
-    $test = HTTP::Caching->_may_store_in_cache($rqst, $resp);
+    warning_like { $test = HTTP::Caching->_may_store_in_cache($rqst, $resp) }
+        { carped => qr/NO CACHE: 'no-store' appears in response/ },
+        "NO CACHE: 'no-store' appears in response cache directives";
     ok ( (defined $test and $test == 0),
-        "NO CACHE: 'no-store' in cache directive for Respons" );
+        "... and returns 0" );
     
 }

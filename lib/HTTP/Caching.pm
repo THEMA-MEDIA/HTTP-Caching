@@ -24,7 +24,7 @@ use Time::HiRes;
 use Moo;
 use MooX::Types::MooseLike::Base ':all';
 
-my $DEBUG = 0;
+our $DEBUG = 0;
 
 =head1 SYNOPSIS
 
@@ -356,7 +356,7 @@ sub _may_store_in_cache {
             return 0
         }
         unless ($method->is_method_cachable) {
-            carp "NO CACHE: method is not cacahable: '$string'\n"
+            carp "NO CACHE: method is not cachable: '$string'\n"
                 if $DEBUG;
             return 0
         }
