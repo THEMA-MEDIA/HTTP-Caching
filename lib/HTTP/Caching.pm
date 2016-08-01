@@ -24,6 +24,8 @@ use Time::HiRes;
 use Moo;
 use MooX::Types::MooseLike::Base ':all';
 
+my $DEBUG = 0;
+
 =head1 SYNOPSIS
 
     my $chi_cache = CHI->new(
@@ -345,10 +347,19 @@ sub _may_store_in_cache {
     # cacheable
     #
     {
-        my $method = eval { HTTP::Method->new($rqst->method) };
+        my $string = $rqst->method;
+        my $method = eval { HTTP::Method->new($string) };
         
-        return 0 unless $method;
-        return 0 unless $method->is_method_cachable;
+        unless ($method) {
+            carp "NO CACHE: method is not understood: '$string'\n"
+                if $DEBUG;
+            return 0
+        }
+        unless ($method->is_method_cachable) {
+            carp "NO CACHE: method is not cacahable: '$string'\n"
+                if $DEBUG;
+            return 0
+        }
     }
     
     #                                               RFC 7234 Section 3 #2
@@ -356,9 +367,14 @@ sub _may_store_in_cache {
     # the response status code is understood by the cache
     #
     {
-        my $message = eval { HTTP::Status::status_message($resp->code) };
+        my $code = $resp->code; 
+        my $message = eval { HTTP::Status::status_message($code) };
         
-        return 0 unless $message;
+        unless ($message) {
+            carp "NO CACHE: response status code is not understood: '$code'\n"
+                if $DEBUG;
+            return 0
+        }
     }
     
     
@@ -368,8 +384,16 @@ sub _may_store_in_cache {
     # in request or response header fields
     #
     {
-        return 0 if any { lc $_ eq 'no-store' } @rqst_directives;
-        return 0 if any { lc $_ eq 'no-store' } @resp_directives;
+        if (any { lc $_ eq 'no-store' } @rqst_directives) {
+            carp "NO CACHE: 'no-store' appears in request cache directives\n"
+                if $DEBUG;
+            return 0
+        }
+        if (any { lc $_ eq 'no-store' } @resp_directives) {
+            carp "NO CACHE: 'no-store' appears in response cache directives\n"
+                if $DEBUG;
+            return 0
+        }
     }
     
     #                                               RFC 7234 Section 3 #4
