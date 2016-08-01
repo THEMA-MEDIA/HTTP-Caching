@@ -1,4 +1,4 @@
-use Test::Most tests => 1;
+use Test::Most tests => 4;
 
 use HTTP::Caching;
 
@@ -6,26 +6,37 @@ use HTTP::Method;
 use HTTP::Request;
 use HTTP::Response;
 
-subtest 'RFC 7234 Section 3 step 1' => sub {
-    plan tests => 3;
-    
-    my $request     = HTTP::Request->new();
-    my $response    = HTTP::Response->new(501);
-    my $test_result = undef;
+my $rqst = HTTP::Request->new();
+my $resp = HTTP::Response->new();
+my $test = undef;
 
-    $request->method('GET');
-    $test_result = HTTP::Caching->_may_store_in_cache($request, $response);
-    ok ( (!defined $test_result or $test_result == 1), # does not return 0
-        "GET should not prevent from caching" );
-    
-    $request->method('DEL');
-    $test_result = HTTP::Caching->_may_store_in_cache($request, $response);
-    ok ( (defined $test_result and $test_result == 0),
-        "DEL is not understood" );
-    
-    $request->method('PUT');
-    $test_result = HTTP::Caching->_may_store_in_cache($request, $response);
-    ok ( (defined $test_result and $test_result == 0),
-        "PUT is not cachable" );
-    
-}
+$rqst->method('DEL');
+
+$test = HTTP::Caching->_may_store_in_cache($rqst, $resp);
+ok ( ( $test == 0),
+    "NO CACHE: DEL is not understood" );
+
+
+$rqst->method('PUT');
+
+$test = HTTP::Caching->_may_store_in_cache($rqst, $resp);
+ok ( (defined $test and $test == 0),
+    "NO CACHE: PUT is not cachable" );
+
+
+$rqst->method('HEAD');
+$resp->code(999);
+
+$test = HTTP::Caching->_may_store_in_cache($rqst, $resp);
+ok ( (defined $test and $test == 0),
+    "NO CACHE: 999 is not understood" );
+
+
+$resp->code(501); # Not Implemented
+
+$test = HTTP::Caching->_may_store_in_cache($rqst, $resp);
+ok ( (!defined $test or $test == 1), # does not return 0
+    "So far... So good!" );
+
+
+

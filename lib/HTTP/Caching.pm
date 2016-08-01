@@ -346,7 +346,11 @@ sub _may_store_in_cache {
     #
     # the response status code is understood by the cache
     #
-#   TODO
+    {
+        my $message = eval { HTTP::Status::status_message($resp->code) };
+        
+        return 0 unless $message;
+    }
     
     
     #                                               RFC 7234 Section 3 #3
