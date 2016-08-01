@@ -18,6 +18,7 @@ use warnings;
 use Carp;
 use Digest::MD5;
 use HTTP::Method;
+use List::MoreUtils qw{ any };
 use Time::HiRes;
 
 use Moo;
@@ -322,8 +323,16 @@ sub _may_store_in_cache {
     my $rqst = shift;
     my $resp = shift;
     
-    my @rqst_directives = $rqst->header('Cache-control');
-    my @resp_directives = $resp->header('Cache-Control');
+    # $msg->header('cache-control) is supposed to return a list, but only works
+    # if it has been generated as a list, not as string with 'comma'
+    # $msg->header in scalar context gives a ', ' joined string
+    # which we now split and trim whitespace
+    my @rqst_directives =
+        map { my $str = $_; $str =~ s/^\s+//; $str =~ s/\s+$//; $str }
+        split ',', scalar $rqst->header('cache-control') || '';
+    my @resp_directives =
+        map { my $str = $_; $str =~ s/^\s+//; $str =~ s/\s+$//; $str }
+        split ',', scalar $resp->header('cache-control') || '';
     
     
     #                                               RFC 7234 Section 3
@@ -358,8 +367,10 @@ sub _may_store_in_cache {
     # the "no-store" cache directive (see Section 5.2) does not appear
     # in request or response header fields
     #
-#   TODO
-    
+    {
+        return 0 if any { lc $_ eq 'no-store' } @rqst_directives;
+        return 0 if any { lc $_ eq 'no-store' } @resp_directives;
+    }
     
     #                                               RFC 7234 Section 3 #4
     #
