@@ -66,7 +66,7 @@ has cache => (
 has cache_type => (
     is          => 'ro',
     required    => 1,
-    isa         => Enum['private', 'public'],
+    isa         => Maybe[ Enum['private', 'public'] ],
 );
 
 has cache_control_request => (
@@ -87,6 +87,12 @@ has forwarder => (
     isa         => CodeRef,
 );
 
+sub is_shared {
+    my $self = shift;
+    
+    return unless $self->cache_type;
+    return $self->cache_type eq 'public'
+}
 =head1 DESCRIPTION
 
 This module tries to provide caching for HTTP responses based on
@@ -346,7 +352,7 @@ sub _may_store_in_cache {
     # the request method is understood by the cache and defined as being
     # cacheable
     #
-    {
+    do {
         my $string = $rqst->method;
         my $method = eval { HTTP::Method->new($string) };
         
@@ -360,13 +366,13 @@ sub _may_store_in_cache {
                 if $DEBUG;
             return 0
         }
-    }
+    };
     
     #                                               RFC 7234 Section 3 #2
     #
     # the response status code is understood by the cache
     #
-    {
+    do {
         my $code = $resp->code; 
         my $message = eval { HTTP::Status::status_message($code) };
         
@@ -375,7 +381,7 @@ sub _may_store_in_cache {
                 if $DEBUG;
             return 0
         }
-    }
+    };
     
     
     #                                               RFC 7234 Section 3 #3
@@ -383,7 +389,7 @@ sub _may_store_in_cache {
     # the "no-store" cache directive (see Section 5.2) does not appear
     # in request or response header fields
     #
-    {
+    do {
         if (any { lc $_ eq 'no-store' } @rqst_directives) {
             carp "NO CACHE: 'no-store' appears in request cache directives\n"
                 if $DEBUG;
@@ -394,15 +400,20 @@ sub _may_store_in_cache {
                 if $DEBUG;
             return 0
         }
-    }
+    };
     
     #                                               RFC 7234 Section 3 #4
     #
     # the "private" response directive (see Section 5.2.2.6) does not
     # appear in the response, if the cache is shared
     #
-#   TODO
-    
+    if ($self->is_shared) {
+        if (any { lc $_ eq 'private' } @resp_directives) {
+            carp "NO CACHE: 'private' appears in cache directives when shared\n"
+                if $DEBUG;
+            return 0
+        }
+    };
     
     #                                               RFC 7234 Section 3 #5
     #
