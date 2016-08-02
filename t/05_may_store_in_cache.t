@@ -1,4 +1,4 @@
-use Test::Most tests => 2;
+use Test::Most tests => 4;
 
 use HTTP::Caching;
 
@@ -65,9 +65,9 @@ subtest "Request Methods and Responses are understood" => sub {
     
 };
 
-subtest "Cache-Control directives" => sub {
+subtest "Cache-Control directive 'no-store'" => sub {
     
-    plan tests => 10;
+    plan tests => 4;
     
     my $rqst = HTTP::Request->new();
     $rqst->method('HEAD');
@@ -107,7 +107,21 @@ subtest "Cache-Control directives" => sub {
     ok ( (defined $test and $test == 0),
         "... and returns 0" );
     
+};
     
+subtest "Cache-Control directive 'private'" => sub {
+    
+    plan tests => 3;
+    
+    my $rqst = HTTP::Request->new();
+    $rqst->method('HEAD');
+    
+    my $resp = HTTP::Response->new();
+    $resp->code(501);
+    
+    my $test = undef;
+    
+        
     # NO CACHE: 'private' appears in response cache directives
     #
     $resp->header(cache_control => 'private');
@@ -140,7 +154,19 @@ subtest "Cache-Control directives" => sub {
     ok ( (!defined $test or $test == 1), # does not return 0
         "So far... So good!" );
     
-    $resp->header(cache_control => undef);
+};
+
+subtest "Request Header 'Authorization'" => sub {
+    
+    plan tests => 3;
+    
+    my $rqst = HTTP::Request->new();
+    $rqst->method('HEAD');
+    
+    my $resp = HTTP::Response->new();
+    $resp->code(501);
+    
+    my $test = undef;
     
     
     # NO CACHE: 'Authorization' appears in request when shared
