@@ -486,9 +486,7 @@ sub _may_store_in_cache {
     # - contains a Cache Control Extension (see Section 5.2.3) that
     #   allows it to be cache
     #
-#   TODO
-    #
-    # NOTE: it looks like this is only used for special defined cache-control
+    # TODO  it looks like this is only used for special defined cache-control
     #       directives. As such, those need special treatment.
     #       It does not seem a good idea to hardcode those here, a config would
     #       be a better solution.
