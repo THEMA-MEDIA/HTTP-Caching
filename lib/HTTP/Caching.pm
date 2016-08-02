@@ -463,8 +463,13 @@ sub _may_store_in_cache {
     
     # - contains a max-age response directive (see Section 5.2.2.8)
     #
-#   TODO
-    
+    do {
+        if (any { lc $_ =~ m/^max-age=\d+$/ } @resp_directives) {
+            carp "DO CACHE: 'max-age' appears in response cache directives\n"
+                if $DEBUG;
+            return 1
+        }
+    };
     
     # - contains a s-maxage response directive (see Section 5.2.2.9)
     #   and the cache is shared

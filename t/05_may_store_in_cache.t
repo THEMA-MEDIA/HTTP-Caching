@@ -1,4 +1,4 @@
-use Test::Most tests => 6;
+use Test::Most tests => 7;
 
 use HTTP::Caching;
 
@@ -319,6 +319,7 @@ subtest "Request Header 'Authorization'" => sub {
     
 };
 
+
 subtest "Response Header 'Expires'"=> sub {
     
     plan tests => 2;
@@ -344,6 +345,37 @@ subtest "Response Header 'Expires'"=> sub {
     }
         { carped => qr/OK CACHE: 'Expires' at/ },
         "OK CACHE: 'Expires' at: ...";
+    ok ( ($test == 1),
+        "... and returns 1" );
+    
+};
+
+
+subtest "Cache-Control directive 'maxage'"=> sub {
+    
+    plan tests => 2;
+    
+    my $test;
+    
+    # DO CACHE: 'Authorization' appears: maxage
+    #
+    my $resp_max_age = $resp_minimal->clone;
+    $resp_max_age->header(cache_control => 'max-age=3600');
+    
+    my $none_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => undef,
+        forwarder   => sub { },
+    );
+    
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_minimal,
+            $resp_max_age
+        )
+    }
+        { carped => qr/DO CACHE: 'max-age' appears in response/ },
+        "DO CACHE: 'max-age' appears in response cache directives";
     ok ( ($test == 1),
         "... and returns 1" );
     
