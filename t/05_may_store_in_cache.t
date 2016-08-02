@@ -220,7 +220,7 @@ subtest "Cache-Control directive 'private'" => sub {
 
 subtest "Request Header 'Authorization'" => sub {
     
-    plan tests => 4;
+    plan tests => 10;
     
     my $test;
     
@@ -268,5 +268,53 @@ subtest "Request Header 'Authorization'" => sub {
         "NO CACHE: 'Authorization' appears in request when shared";
     ok ( (defined $test and $test == 0),
         "... and returns 0" );
+    
+    # DO CACHE: 'Authorization' appears: must-revalidate
+    #
+    my $resp_must_revalidate = $resp_minimal->clone;
+    $resp_must_revalidate->header(cache_control => 'must-revalidate');
+    
+    warning_like {
+        $test = $pblc_caching->_may_store_in_cache(
+            $rqst_authorization,
+            $resp_must_revalidate
+        )
+    }
+        { carped => qr/DO CACHE: 'Authorization' appears: must-revalidate/ },
+        "DO CACHE: 'Authorization' appears: must-revalidate";
+    ok ( ($test == 1),
+        "... and returns 1" );
+    
+    # DO CACHE: 'Authorization' appears: public
+    #
+    my $resp_public = $resp_minimal->clone;
+    $resp_public->header(cache_control => 'public');
+    
+    warning_like {
+        $test = $pblc_caching->_may_store_in_cache(
+            $rqst_authorization,
+            $resp_public
+        )
+    }
+        { carped => qr/DO CACHE: 'Authorization' appears: public/ },
+        "DO CACHE: 'Authorization' appears: public";
+    ok ( ($test == 1),
+        "... and returns 1" );
+    
+    # DO CACHE: 'Authorization' appears: s-maxage
+    #
+    my $resp_s_maxage = $resp_minimal->clone;
+    $resp_s_maxage->header(cache_control => 's-maxage=3600');
+    
+    warning_like {
+        $test = $pblc_caching->_may_store_in_cache(
+            $rqst_authorization,
+            $resp_s_maxage
+        )
+    }
+        { carped => qr/DO CACHE: 'Authorization' appears: s-maxage/ },
+        "DO CACHE: 'Authorization' appears: s-maxage";
+    ok ( ($test == 1),
+        "... and returns 1" );
     
 }

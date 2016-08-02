@@ -423,12 +423,26 @@ sub _may_store_in_cache {
     #
     if ($self->is_shared) {
         if ($rqst->header('Authorization')) {
+            if (any { lc $_ eq 'must-revalidate' } @resp_directives) {
+                carp "DO CACHE: 'Authorization' appears: must-revalidate\n"
+                    if $DEBUG;
+                return 1
+            }
+            if (any { lc $_ eq 'public' } @resp_directives) {
+                carp "DO CACHE: 'Authorization' appears: public\n"
+                    if $DEBUG;
+                return 1
+            }
+            if (any { lc $_ =~ m/^s-maxage=\d+$/ } @resp_directives) {
+                carp "DO CACHE: 'Authorization' appears: s-maxage\n"
+                    if $DEBUG;
+                return 1
+            }
             carp "NO CACHE: 'Authorization' appears in request when shared\n"
                 if $DEBUG;
             return 0
         }
     };
-#   TODO unless the response explicitly allows it (see Section 3.2)
     
     
     #                                               RFC 7234 Section 3 #6
