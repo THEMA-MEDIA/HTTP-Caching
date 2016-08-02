@@ -487,6 +487,11 @@ sub _may_store_in_cache {
     #   allows it to be cache
     #
 #   TODO
+    #
+    # NOTE: it looks like this is only used for special defined cache-control
+    #       directives. As such, those need special treatment.
+    #       It does not seem a good idea to hardcode those here, a config would
+    #       be a better solution.
     
     
     # - has a status code that is defined as cacheable by default (see

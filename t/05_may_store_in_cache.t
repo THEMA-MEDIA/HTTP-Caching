@@ -1,4 +1,4 @@
-use Test::Most tests => 8;
+use Test::Most tests => 9;
 
 use HTTP::Caching;
 
@@ -427,4 +427,13 @@ subtest "Cache-Control directive 's-maxage'"=> sub {
     ok ( (!defined $test or $test == 1), # does not return 0
         "So far... So good!" );
         
+};
+
+
+subtest "Cache Control Extension"=> sub {
+    
+    plan tests => 1;
+    
+    pass("Cache Control Extension are not implemented at all");
+    
 };
