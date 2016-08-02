@@ -1,4 +1,4 @@
-use Test::Most tests => 5;
+use Test::Most tests => 6;
 
 use HTTP::Caching;
 
@@ -317,4 +317,34 @@ subtest "Request Header 'Authorization'" => sub {
     ok ( ($test == 1),
         "... and returns 1" );
     
-}
+};
+
+subtest "Response Header 'Expires'"=> sub {
+    
+    plan tests => 2;
+    
+    my $test;
+    
+    # DO CACHE: 'Authorization' appears: s-maxage
+    #
+    my $resp_expires = $resp_minimal->clone;
+    $resp_expires->header('Expires' => 'Mon, 06 Jun 2016 21:47:33 GMT');
+    
+    my $none_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => undef,
+        forwarder   => sub { },
+    );
+    
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_minimal,
+            $resp_expires
+        )
+    }
+        { carped => qr/OK CACHE: 'Expires' at/ },
+        "OK CACHE: 'Expires' at: ...";
+    ok ( ($test == 1),
+        "... and returns 1" );
+    
+};

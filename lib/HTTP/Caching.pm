@@ -451,8 +451,15 @@ sub _may_store_in_cache {
     #
     # - contains an Expires header field (see Section 5.3)
     #
-#   TODO
-    
+    do {
+        my $expires_at = $resp->header('Expires');
+        
+        if ($expires_at) {
+            carp "OK CACHE: 'Expires' at: $expires_at\n"
+                if $DEBUG;
+            return 1
+        }
+    };
     
     # - contains a max-age response directive (see Section 5.2.2.8)
     #
