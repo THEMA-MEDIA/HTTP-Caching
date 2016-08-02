@@ -2,7 +2,7 @@ use Test::Most tests => 5;
 
 use HTTP::Caching;
 
-$HTTP::Caching::DEBUG = 1;
+$HTTP::Caching::DEBUG = 1; # so we get nice helpful messages back
 
 use HTTP::Method;
 use HTTP::Request;
@@ -48,6 +48,7 @@ subtest "Minimal" => sub {
         "So far... So good!" );
     
 };
+
 
 subtest "Request Methods and Responses are understood" => sub {
     
@@ -114,6 +115,7 @@ subtest "Request Methods and Responses are understood" => sub {
     
 };
 
+
 subtest "Cache-Control directive 'no-store'" => sub {
     
     plan tests => 4;
@@ -160,7 +162,8 @@ subtest "Cache-Control directive 'no-store'" => sub {
         "... and returns 0" );
     
 };
-    
+
+
 subtest "Cache-Control directive 'private'" => sub {
     
     plan tests => 4;
@@ -214,6 +217,7 @@ subtest "Cache-Control directive 'private'" => sub {
     
 };
 
+
 subtest "Request Header 'Authorization'" => sub {
     
     plan tests => 4;
@@ -225,7 +229,28 @@ subtest "Request Header 'Authorization'" => sub {
     my $rqst_authorization = $rqst_minimal->clone;
     $rqst_authorization->header('Authorization' => 'Basic am9obi5kb2U6c2VjcmV0');
     
-    # HTTP::Caching as 'public' or 'shared
+    
+    # HTTP::Caching not shared
+    #
+    my $none_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => undef,
+        forwarder   => sub { },
+    );
+    
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_authorization,
+            $resp_minimal
+        )
+    }
+        { carped => '' },
+        "OK CACHE: 'Authorization' appears in request when not shared";
+    ok ( (!defined $test or $test == 1), # does not return 0
+        "... and does not return 0" );
+    
+    
+    # HTTP::Caching as 'public' or 'shared'
     #
     my $pblc_caching = HTTP::Caching->new(
         cache       => undef,
@@ -243,27 +268,5 @@ subtest "Request Header 'Authorization'" => sub {
         "NO CACHE: 'Authorization' appears in request when shared";
     ok ( (defined $test and $test == 0),
         "... and returns 0" );
-    
-    # HTTP::Caching as 'public' or 'shared
-    #
-    my $none_caching = HTTP::Caching->new(
-        cache       => undef,
-        cache_type  => undef,
-        forwarder   => sub { },
-    );
-    
-    # So far... So good!
-    #
-    warning_like {
-        $test = $none_caching->_may_store_in_cache(
-            $rqst_authorization,
-            $resp_minimal
-        )
-    }
-        { carped => '' },
-        "OK CACHE: 'Authorization' appears in request when not shared";
-    ok ( (!defined $test or $test == 1), # does not return 0
-        "... and does not return 0" );
-    
     
 }
