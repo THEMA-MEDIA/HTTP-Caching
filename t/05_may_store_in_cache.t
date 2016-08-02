@@ -1,4 +1,4 @@
-use Test::Most tests => 9;
+use Test::Most tests => 10;
 
 use HTTP::Caching;
 
@@ -13,18 +13,12 @@ use HTTP::Response;
 #   Method is understood,
 #   Method is safe
 #   Method is cachable
-# - Response: 501 Not Implemented
+# - Response: 100 Continue
 #   Status Code is understood
-#   Status Code is be default cachable
+#   Status Code is not be default cachable
+#   Will fall through
 my $rqst_minimal = HTTP::Request->new('HEAD');
-my $resp_minimal = HTTP::Response->new(501); # Not Implented
-#
-# NOTE: RFC 7231 Section 4.1. Request Methods : Overview
-#   All general-purpose servers MUST support the methods GET and HEAD.
-#   All other methods are OPTIONAL.
-#
-# a 501 response to a HEAD request SHOULD NOT happen
-
+my $resp_minimal = HTTP::Response->new(100);
 
 subtest "Minimal" => sub {
     
@@ -92,8 +86,8 @@ subtest "Request Methods and Responses are understood" => sub {
             $resp_null
         )
     }
-        { carped => qr/NO CACHE: method is not cachable/ },
-        "NO CACHE: method is not cachable";
+        { carped => qr/NO CACHE: method is not cacheable/ },
+        "NO CACHE: method is not cacheable";
     ok ( (defined $test and $test == 0),
         "... and returns 0" );
     
@@ -380,6 +374,8 @@ subtest "Cache-Control directive 'max-age'"=> sub {
         "... and returns 1" );
     
 };
+
+
 subtest "Cache-Control directive 's-maxage'"=> sub {
     
     plan tests => 4;
@@ -430,10 +426,60 @@ subtest "Cache-Control directive 's-maxage'"=> sub {
 };
 
 
-subtest "Cache Control Extension"=> sub {
+subtest "Cache Control Extension" => sub {
     
     plan tests => 1;
     
     pass("Cache Control Extension are not implemented at all");
+    
+};
+
+
+subtest "Status code is cacheable by default" => sub {
+    
+    plan tests => 4;
+    
+    my $test;
+    
+    my $none_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => undef,
+        forwarder   => sub { },
+    );
+    
+    # DO CACHE: status code is cacheable by default
+    #
+    my $resp_cacheable_by_default = $resp_minimal->clone;
+    $resp_cacheable_by_default->code(200);
+    
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_minimal,
+            $resp_cacheable_by_default
+        )
+    }
+        { carped => qr/DO CACHE: status code is cacheable by default/ },
+        "DO CACHE: status code is cacheable by default";
+    ok ( ($test == 1),
+        "... and returns 1" );
+    
+    # So far... So good!
+    #
+    
+    # DO CACHE: status code is not cacheable by default
+    #
+    my $resp_not_cacheable_be_default = $resp_minimal->clone;
+    $resp_not_cacheable_be_default->code(100);
+    
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_minimal,
+            $resp_not_cacheable_be_default
+        )
+    }
+        { carped => '' },
+        "NO CACHE: 'status code is not cacheable by default";
+    ok ( (!defined $test or $test == 1), # does not return 0
+        "... and does not return 0" );
     
 };

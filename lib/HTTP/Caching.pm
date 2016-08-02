@@ -19,6 +19,7 @@ use Carp;
 use Digest::MD5;
 use HTTP::Method;
 use List::MoreUtils qw{ any };
+use Monkey::Patch::Action;
 use Time::HiRes;
 
 use Moo;
@@ -319,6 +320,30 @@ sub _retrieve {
     return $resp;
 }
 
+# HTTP::Status::is_cacheable_by_default
+#
+# that subroutine is missing. Until it's added there, it's been monkey-patched
+# here.
+#
+#                            RFC 7231 - HTTP/1.1 Semantics and Content
+#                            Section 6.1. Overview of Status Codes
+#
+#   Responses with status codes that are defined as cacheable by default
+#   (e.g., 200, 203, 204, 206, 300, 301, 404, 405, 410, 414, and 501 in
+#   this specification) can be reused by a cache with heuristic
+#   expiration unless otherwise indicated by the method definition or
+#   explicit cache controls [RFC7234]; all other status codes are not
+#   cacheable by default.
+#
+my $handle = Monkey::Patch::Action::patch_package (
+    'HTTP::Status', 'is_cacheable_by_default', 'add', sub {
+        my $code = shift;
+        $code = $code +0;
+        
+        return any {$_ == $code} (200,203,204,206,300,301,404,405,410,414,501)
+    }
+);
+
 # _may_store_in_cache()
 #
 # based on some headers in the request, but mostly on those in the new response
@@ -361,8 +386,8 @@ sub _may_store_in_cache {
                 if $DEBUG;
             return 0
         }
-        unless ($method->is_method_cachable) {
-            carp "NO CACHE: method is not cachable: '$string'\n"
+        unless ($method->is_method_cachable) { # XXX Fix cacheable
+            carp "NO CACHE: method is not cacheable: '$string'\n"
                 if $DEBUG;
             return 0
         }
@@ -495,8 +520,15 @@ sub _may_store_in_cache {
     # - has a status code that is defined as cacheable by default (see
     #   Section 4.2.2)
     #
-#   TODO
-    
+    do {
+        my $code = $resp->code; 
+        
+        if (HTTP::Status::is_cacheable_by_default($code)) {
+            carp "DO CACHE: status code is cacheable by default: '$code'\n"
+                if $DEBUG;
+            return 1
+        }
+    };
     
     # - contains a public response directive (see Section 5.2.2.5)
     #
