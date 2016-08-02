@@ -1,4 +1,4 @@
-use Test::Most tests => 10;
+use Test::Most tests => 11;
 
 use HTTP::Caching;
 
@@ -204,7 +204,7 @@ subtest "Cache-Control directive 'private'" => sub {
             $resp_private
         )
     }
-        { carped => '' },
+        { carped => qr/NO CACHE: Does not match the six criteria above/ },
         "OK CACHE: 'private' appears in cache directives when not shared";
     ok ( (!defined $test or $test == 1), # does not return 0
         "... and does not return 0" );
@@ -238,7 +238,7 @@ subtest "Request Header 'Authorization'" => sub {
             $resp_minimal
         )
     }
-        { carped => '' },
+        { carped => qr/NO CACHE: Does not match the six criteria above/ },
         "OK CACHE: 'Authorization' appears in request when not shared";
     ok ( (!defined $test or $test == 1), # does not return 0
         "... and does not return 0" );
@@ -418,7 +418,7 @@ subtest "Cache-Control directive 's-maxage'"=> sub {
             $resp_s_maxage
         )
     }
-        { carped => '' },
+        { carped => qr/NO CACHE: Does not match the six criteria above/ },
         "DO CACHE: 's-maxage' appears in response cache directives";
     ok ( (!defined $test or $test == 1), # does not return 0
         "So far... So good!" );
@@ -477,9 +477,41 @@ subtest "Status code is cacheable by default" => sub {
             $resp_not_cacheable_be_default
         )
     }
-        { carped => '' },
+        { carped => qr/NO CACHE: Does not match the six criteria above/ },
         "NO CACHE: 'status code is not cacheable by default";
     ok ( (!defined $test or $test == 1), # does not return 0
         "... and does not return 0" );
     
 };
+
+
+subtest "Cache Control directive 'public'"=> sub {
+    
+    plan tests => 2;
+    
+    my $test;
+    
+    # DO CACHE: 'public' appears in response
+    #
+    my $resp_public = $resp_minimal->clone;
+    $resp_public->header(cache_control => 'public');
+    
+    my $none_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => undef,
+        forwarder   => sub { },
+    );
+    
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_minimal,
+            $resp_public
+        )
+    }
+        { carped => qr/DO CACHE: 'public' appears/ },
+        "DO CACHE: 'public' appears in response cache directives";
+    ok ( ($test == 1),
+        "... and returns 1" );
+    
+};
+

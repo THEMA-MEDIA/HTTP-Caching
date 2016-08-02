@@ -532,8 +532,18 @@ sub _may_store_in_cache {
     
     # - contains a public response directive (see Section 5.2.2.5)
     #
-#   TODO
+    do {
+        if (any { lc $_ eq 'public' } @resp_directives) {
+            carp "DO CACHE: 'public' appears in response cache directives\n"
+                if $DEBUG;
+            return 1
+        }
+    };
     
+    # Falls trough ... SHOULD NOT store in cache
+    #
+    carp "NO CACHE: Does not match the six criteria above\n"
+        if $DEBUG;
     
     return undef;
 }
