@@ -6,21 +6,26 @@ HTTP::Caching - The RFC 7234 compliant brains to do caching right
 
 =head1 VERSION
 
-Version 0.01 Alpha 03
+Version 0.02 Alpha 01
 
 =cut
 
-our $VERSION = '0.01_03';
+our $VERSION = '0.02_01';
 
 use strict;
 use warnings;
 
 use Carp;
 use Digest::MD5;
+use HTTP::Method;
+use List::MoreUtils qw{ any };
+use Monkey::Patch::Action;
 use Time::HiRes;
 
 use Moo;
 use MooX::Types::MooseLike::Base ':all';
+
+our $DEBUG = 0;
 
 =head1 SYNOPSIS
 
@@ -62,7 +67,7 @@ has cache => (
 has cache_type => (
     is          => 'ro',
     required    => 1,
-    isa         => Enum['private', 'public'],
+    isa         => Maybe[ Enum['private', 'public'] ],
 );
 
 has cache_control_request => (
@@ -83,6 +88,12 @@ has forwarder => (
     isa         => CodeRef,
 );
 
+sub is_shared {
+    my $self = shift;
+    
+    return unless $self->cache_type;
+    return $self->cache_type eq 'public'
+}
 =head1 DESCRIPTION
 
 This module tries to provide caching for HTTP responses based on
@@ -307,6 +318,234 @@ sub _retrieve {
     my $resp = $self->cache->get( $request_key );
     
     return $resp;
+}
+
+# HTTP::Status::is_cacheable_by_default
+#
+# that subroutine is missing. Until it's added there, it's been monkey-patched
+# here.
+#
+#                            RFC 7231 - HTTP/1.1 Semantics and Content
+#                            Section 6.1. Overview of Status Codes
+#
+#   Responses with status codes that are defined as cacheable by default
+#   (e.g., 200, 203, 204, 206, 300, 301, 404, 405, 410, 414, and 501 in
+#   this specification) can be reused by a cache with heuristic
+#   expiration unless otherwise indicated by the method definition or
+#   explicit cache controls [RFC7234]; all other status codes are not
+#   cacheable by default.
+#
+my $handle = Monkey::Patch::Action::patch_package (
+    'HTTP::Status', 'is_cacheable_by_default', 'add', sub {
+        my $code = shift;
+        $code = $code +0;
+        
+        return any {$_ == $code} (200,203,204,206,300,301,404,405,410,414,501)
+    }
+);
+
+# _may_store_in_cache()
+#
+# based on some headers in the request, but mostly on those in the new response
+# the cache can hold a copy of it or not.
+#
+# see RFC 7234 Section 3: Storing Responses in Caches
+#
+sub _may_store_in_cache {
+    my $self = shift;
+    my $rqst = shift;
+    my $resp = shift;
+    
+    # $msg->header('cache-control) is supposed to return a list, but only works
+    # if it has been generated as a list, not as string with 'comma'
+    # $msg->header in scalar context gives a ', ' joined string
+    # which we now split and trim whitespace
+    my @rqst_directives =
+        map { my $str = $_; $str =~ s/^\s+//; $str =~ s/\s+$//; $str }
+        split ',', scalar $rqst->header('cache-control') || '';
+    my @resp_directives =
+        map { my $str = $_; $str =~ s/^\s+//; $str =~ s/\s+$//; $str }
+        split ',', scalar $resp->header('cache-control') || '';
+    
+    
+    #                                               RFC 7234 Section 3
+    #
+    # A cache MUST NOT store a response to any request, unless:
+    
+    #                                               RFC 7234 Section 3 #1
+    #
+    # the request method is understood by the cache and defined as being
+    # cacheable
+    #
+    do {
+        my $string = $rqst->method;
+        my $method = eval { HTTP::Method->new($string) };
+        
+        unless ($method) {
+            carp "NO CACHE: method is not understood: '$string'\n"
+                if $DEBUG;
+            return 0
+        }
+        unless ($method->is_method_cachable) { # XXX Fix cacheable
+            carp "NO CACHE: method is not cacheable: '$string'\n"
+                if $DEBUG;
+            return 0
+        }
+    };
+    
+    #                                               RFC 7234 Section 3 #2
+    #
+    # the response status code is understood by the cache
+    #
+    do {
+        my $code = $resp->code; 
+        my $message = eval { HTTP::Status::status_message($code) };
+        
+        unless ($message) {
+            carp "NO CACHE: response status code is not understood: '$code'\n"
+                if $DEBUG;
+            return 0
+        }
+    };
+    
+    
+    #                                               RFC 7234 Section 3 #3
+    #
+    # the "no-store" cache directive (see Section 5.2) does not appear
+    # in request or response header fields
+    #
+    do {
+        if (any { lc $_ eq 'no-store' } @rqst_directives) {
+            carp "NO CACHE: 'no-store' appears in request cache directives\n"
+                if $DEBUG;
+            return 0
+        }
+        if (any { lc $_ eq 'no-store' } @resp_directives) {
+            carp "NO CACHE: 'no-store' appears in response cache directives\n"
+                if $DEBUG;
+            return 0
+        }
+    };
+    
+    #                                               RFC 7234 Section 3 #4
+    #
+    # the "private" response directive (see Section 5.2.2.6) does not
+    # appear in the response, if the cache is shared
+    #
+    if ($self->is_shared) {
+        if (any { lc $_ eq 'private' } @resp_directives) {
+            carp "NO CACHE: 'private' appears in cache directives when shared\n"
+                if $DEBUG;
+            return 0
+        }
+    };
+    
+    #                                               RFC 7234 Section 3 #5
+    #
+    # the Authorization header field (see Section 4.2 of [RFC7235]) does
+    # not appear in the request, if the cache is shared, unless the
+    # response explicitly allows it (see Section 3.2)
+    #
+    if ($self->is_shared) {
+        if ($rqst->header('Authorization')) {
+            if (any { lc $_ eq 'must-revalidate' } @resp_directives) {
+                carp "DO CACHE: 'Authorization' appears: must-revalidate\n"
+                    if $DEBUG;
+                return 1
+            }
+            if (any { lc $_ eq 'public' } @resp_directives) {
+                carp "DO CACHE: 'Authorization' appears: public\n"
+                    if $DEBUG;
+                return 1
+            }
+            if (any { lc $_ =~ m/^s-maxage=\d+$/ } @resp_directives) {
+                carp "DO CACHE: 'Authorization' appears: s-maxage\n"
+                    if $DEBUG;
+                return 1
+            }
+            carp "NO CACHE: 'Authorization' appears in request when shared\n"
+                if $DEBUG;
+            return 0
+        }
+    };
+    
+    
+    #                                               RFC 7234 Section 3 #6
+    #
+    # the response either:
+    #
+    # - contains an Expires header field (see Section 5.3)
+    #
+    do {
+        my $expires_at = $resp->header('Expires');
+        
+        if ($expires_at) {
+            carp "OK CACHE: 'Expires' at: $expires_at\n"
+                if $DEBUG;
+            return 1
+        }
+    };
+    
+    # - contains a max-age response directive (see Section 5.2.2.8)
+    #
+    do {
+        if (any { lc $_ =~ m/^max-age=\d+$/ } @resp_directives) {
+            carp "DO CACHE: 'max-age' appears in response cache directives\n"
+                if $DEBUG;
+            return 1
+        }
+    };
+    
+    # - contains a s-maxage response directive (see Section 5.2.2.9)
+    #   and the cache is shared
+    #
+    if ($self->is_shared) {
+        if (any { lc $_ =~ m/^s-maxage=\d+$/ } @resp_directives) {
+            carp "DO CACHE: 's-maxage' appears in response cache directives\n"
+                if $DEBUG;
+            return 1
+        }
+    };
+    
+    
+    # - contains a Cache Control Extension (see Section 5.2.3) that
+    #   allows it to be cache
+    #
+    # TODO  it looks like this is only used for special defined cache-control
+    #       directives. As such, those need special treatment.
+    #       It does not seem a good idea to hardcode those here, a config would
+    #       be a better solution.
+    
+    
+    # - has a status code that is defined as cacheable by default (see
+    #   Section 4.2.2)
+    #
+    do {
+        my $code = $resp->code; 
+        
+        if (HTTP::Status::is_cacheable_by_default($code)) {
+            carp "DO CACHE: status code is cacheable by default: '$code'\n"
+                if $DEBUG;
+            return 1
+        }
+    };
+    
+    # - contains a public response directive (see Section 5.2.2.5)
+    #
+    do {
+        if (any { lc $_ eq 'public' } @resp_directives) {
+            carp "DO CACHE: 'public' appears in response cache directives\n"
+                if $DEBUG;
+            return 1
+        }
+    };
+    
+    # Falls trough ... SHOULD NOT store in cache
+    #
+    carp "NO CACHE: Does not match the six criteria above\n"
+        if $DEBUG;
+    
+    return undef;
 }
 
 1;
