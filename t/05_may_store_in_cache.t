@@ -1,4 +1,4 @@
-use Test::Most tests => 4;
+use Test::Most tests => 5;
 
 use HTTP::Caching;
 
@@ -8,60 +8,109 @@ use HTTP::Method;
 use HTTP::Request;
 use HTTP::Response;
 
-my $http_caching;
+# minimal HTTP::Messages
+# - Request: HEAD
+#   Method is understood,
+#   Method is safe
+#   Method is cachable
+# - Response: 501 Not Implemented
+#   Status Code is understood
+#   Status Code is be default cachable
+my $rqst_minimal = HTTP::Request->new('HEAD');
+my $resp_minimal = HTTP::Response->new(501); # Not Implented
+#
+# NOTE: RFC 7231 Section 4.1. Request Methods : Overview
+#   All general-purpose servers MUST support the methods GET and HEAD.
+#   All other methods are OPTIONAL.
+#
+# a 501 response to a HEAD request SHOULD NOT happen
 
-subtest "Request Methods and Responses are understood" => sub {
+
+subtest "Minimal" => sub {
     
-    plan tests => 7;
+    plan tests => 1;
     
-    my $rqst = HTTP::Request->new();
-    my $resp = HTTP::Response->new();
-    my $test = undef;
+    my $test;
     
-    $http_caching = HTTP::Caching->new(
+    my $none_caching = HTTP::Caching->new(
         cache       => undef,
         cache_type  => undef,
         forwarder   => sub { },
     );
     
-    # NO CACHE: method is not understood: 'DEL'
+    # So far... So good!
     #
-    $rqst->method('DEL');
+    $test = $none_caching->_may_store_in_cache(
+        $rqst_minimal,
+        $resp_minimal
+    );
+    ok ( (!defined $test or $test == 1), # does not return 0
+        "So far... So good!" );
     
-    warning_like { $test = $http_caching->_may_store_in_cache($rqst, $resp) }
+};
+
+subtest "Request Methods and Responses are understood" => sub {
+    
+    plan tests => 6;
+    
+    my $test;
+    
+    my $rqst_null = HTTP::Request->new();
+    my $resp_null = HTTP::Response->new();
+    
+    my $none_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => undef,
+        forwarder   => sub { },
+    );
+    
+    # NO CACHE: method is not understood
+    #
+    my $rqst_bad_method = $rqst_minimal->clone;
+    $rqst_bad_method->method('X');
+    
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_bad_method,
+            $resp_null
+        )
+    }
         { carped => qr/NO CACHE: method is not understood/ },
         "NO CACHE: method is not understood";
     ok ( (defined $test and $test == 0),
         "... and returns 0" );
     
-    # NO CACHE: method is not cachable: 'PUT'
+    # NO CACHE: method is not cachable
     #
-    $rqst->method('PUT');
+    my $rqst_not_cachable = $rqst_minimal->clone;
+    $rqst_not_cachable->method('PUT');
     
-    warning_like { $test = $http_caching->_may_store_in_cache($rqst, $resp) }
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_not_cachable,
+            $resp_null
+        )
+    }
         { carped => qr/NO CACHE: method is not cachable/ },
         "NO CACHE: method is not cachable";
     ok ( (defined $test and $test == 0),
         "... and returns 0" );
     
-    # NO CACHE: response status code is not understood: '999'
+    # NO CACHE: response status code is not understood
     #
-    $rqst->method('HEAD');
-    $resp->code(999);
+    my $resp_bad_status_code = $resp_minimal->clone;
+    $resp_bad_status_code->code(999);
     
-    warning_like { $test = $http_caching->_may_store_in_cache($rqst, $resp) }
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_minimal,
+            $resp_bad_status_code
+        )
+    }
         { carped => qr/NO CACHE: response status code is not understood/ },
         "NO CACHE: response status code is not understood";
     ok ( (defined $test and $test == 0),
         "... and returns 0" );
-    
-    # So far... So good!
-    #
-    $resp->code(501); # Not Implemented
-    
-    $test = $http_caching->_may_store_in_cache($rqst, $resp);
-    ok ( (!defined $test or $test == 1), # does not return 0
-        "So far... So good!" );
     
 };
 
@@ -69,15 +118,9 @@ subtest "Cache-Control directive 'no-store'" => sub {
     
     plan tests => 4;
     
-    my $rqst = HTTP::Request->new();
-    $rqst->method('HEAD');
+    my $test;
     
-    my $resp = HTTP::Response->new();
-    $resp->code(501);
-    
-    my $test = undef;
-    
-    $http_caching = HTTP::Caching->new(
+    my $none_caching = HTTP::Caching->new(
         cache       => undef,
         cache_type  => undef,
         forwarder   => sub { },
@@ -86,22 +129,31 @@ subtest "Cache-Control directive 'no-store'" => sub {
     
     # NO CACHE: 'no-store' appears in request cache directives
     #
-    $rqst->header(cache_control => 'no-store, no-idea');
+    my $rqst_not_store = $rqst_minimal->clone;
+    $rqst_not_store->header(cache_control => 'no-store, no-idea');
     
-    warning_like { $test = $http_caching->_may_store_in_cache($rqst, $resp) }
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_not_store,
+            $resp_minimal
+        )
+    }
         { carped => qr/NO CACHE: 'no-store' appears in request/ },
         "NO CACHE: 'no-store' appears in request cache directives";
     ok ( (defined $test and $test == 0),
         "... and returns 0" );
     
-    $rqst->header(cache_control => undef);
-    
-    
     # NO CACHE: 'no-store' appears in response cache directives
     #
-    $resp->header(cache_control => 'no-store, no-idea');
+    my $resp_not_store = $resp_minimal->clone;
+    $resp_not_store->header(cache_control => 'no-store, no-idea');
 
-    warning_like { $test = $http_caching->_may_store_in_cache($rqst, $resp) }
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_minimal,
+            $resp_not_store
+        )
+    }
         { carped => qr/NO CACHE: 'no-store' appears in response/ },
         "NO CACHE: 'no-store' appears in response cache directives";
     ok ( (defined $test and $test == 0),
@@ -111,30 +163,29 @@ subtest "Cache-Control directive 'no-store'" => sub {
     
 subtest "Cache-Control directive 'private'" => sub {
     
-    plan tests => 3;
+    plan tests => 4;
     
-    my $rqst = HTTP::Request->new();
-    $rqst->method('HEAD');
+    my $test;
     
-    my $resp = HTTP::Response->new();
-    $resp->code(501);
-    
-    my $test = undef;
-    
-        
     # NO CACHE: 'private' appears in response cache directives
     #
-    $resp->header(cache_control => 'private');
+    my $resp_private = $resp_minimal->clone;
+    $resp_private->header(cache_control => 'private');
     
     # HTTP::Caching as 'public' or 'shared
     #
-    $http_caching = HTTP::Caching->new(
+    my $pblc_caching = HTTP::Caching->new(
         cache       => undef,
         cache_type  => 'public',
         forwarder   => sub { },
     );
     
-    warning_like { $test = $http_caching->_may_store_in_cache($rqst, $resp) }
+    warning_like {
+        $test = $pblc_caching->_may_store_in_cache(
+            $rqst_minimal,
+            $resp_private
+        )
+    }
         { carped => qr/NO CACHE: 'private' appears/ },
         "NO CACHE: 'private' appears in cache directives when shared";
     ok ( (defined $test and $test == 0),
@@ -142,7 +193,7 @@ subtest "Cache-Control directive 'private'" => sub {
     
     # HTTP::Caching as 'public' or 'shared
     #
-    $http_caching = HTTP::Caching->new(
+    my $none_caching = HTTP::Caching->new(
         cache       => undef,
         cache_type  => undef,
         forwarder   => sub { },
@@ -150,38 +201,44 @@ subtest "Cache-Control directive 'private'" => sub {
     
     # So far... So good!
     #
-    $test = $http_caching->_may_store_in_cache($rqst, $resp);
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_minimal,
+            $resp_private
+        )
+    }
+        { carped => '' },
+        "OK CACHE: 'private' appears in cache directives when not shared";
     ok ( (!defined $test or $test == 1), # does not return 0
-        "So far... So good!" );
+        "... and does not return 0" );
     
 };
 
 subtest "Request Header 'Authorization'" => sub {
     
-    plan tests => 3;
+    plan tests => 4;
     
-    my $rqst = HTTP::Request->new();
-    $rqst->method('HEAD');
-    
-    my $resp = HTTP::Response->new();
-    $resp->code(501);
-    
-    my $test = undef;
-    
+    my $test;
     
     # NO CACHE: 'Authorization' appears in request when shared
     #
-    $rqst->header('Authorization' => 'Basic am9obi5kb2U6c2VjcmV0');
+    my $rqst_authorization = $rqst_minimal->clone;
+    $rqst_authorization->header('Authorization' => 'Basic am9obi5kb2U6c2VjcmV0');
     
     # HTTP::Caching as 'public' or 'shared
     #
-    $http_caching = HTTP::Caching->new(
+    my $pblc_caching = HTTP::Caching->new(
         cache       => undef,
         cache_type  => 'public',
         forwarder   => sub { },
     );
     
-    warning_like { $test = $http_caching->_may_store_in_cache($rqst, $resp) }
+    warning_like {
+        $test = $pblc_caching->_may_store_in_cache(
+            $rqst_authorization,
+            $resp_minimal
+        )
+    }
         { carped => qr/NO CACHE: 'Authorization' appears/ },
         "NO CACHE: 'Authorization' appears in request when shared";
     ok ( (defined $test and $test == 0),
@@ -189,7 +246,7 @@ subtest "Request Header 'Authorization'" => sub {
     
     # HTTP::Caching as 'public' or 'shared
     #
-    $http_caching = HTTP::Caching->new(
+    my $none_caching = HTTP::Caching->new(
         cache       => undef,
         cache_type  => undef,
         forwarder   => sub { },
@@ -197,8 +254,16 @@ subtest "Request Header 'Authorization'" => sub {
     
     # So far... So good!
     #
-    $test = $http_caching->_may_store_in_cache($rqst, $resp);
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_authorization,
+            $resp_minimal
+        )
+    }
+        { carped => '' },
+        "OK CACHE: 'Authorization' appears in request when not shared";
     ok ( (!defined $test or $test == 1), # does not return 0
-        "So far... So good!" );
+        "... and does not return 0" );
+    
     
 }
