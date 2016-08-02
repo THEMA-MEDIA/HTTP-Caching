@@ -474,7 +474,13 @@ sub _may_store_in_cache {
     # - contains a s-maxage response directive (see Section 5.2.2.9)
     #   and the cache is shared
     #
-#   TODO
+    if ($self->is_shared) {
+        if (any { lc $_ =~ m/^s-maxage=\d+$/ } @resp_directives) {
+            carp "DO CACHE: 's-maxage' appears in response cache directives\n"
+                if $DEBUG;
+            return 1
+        }
+    };
     
     
     # - contains a Cache Control Extension (see Section 5.2.3) that

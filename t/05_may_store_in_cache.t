@@ -1,4 +1,4 @@
-use Test::Most tests => 7;
+use Test::Most tests => 8;
 
 use HTTP::Caching;
 
@@ -326,7 +326,7 @@ subtest "Response Header 'Expires'"=> sub {
     
     my $test;
     
-    # DO CACHE: 'Authorization' appears: s-maxage
+    # OK CACHE: 'Expires' at: ...
     #
     my $resp_expires = $resp_minimal->clone;
     $resp_expires->header('Expires' => 'Mon, 06 Jun 2016 21:47:33 GMT');
@@ -351,13 +351,13 @@ subtest "Response Header 'Expires'"=> sub {
 };
 
 
-subtest "Cache-Control directive 'maxage'"=> sub {
+subtest "Cache-Control directive 'max-age'"=> sub {
     
     plan tests => 2;
     
     my $test;
     
-    # DO CACHE: 'Authorization' appears: maxage
+    # DO CACHE: 'max-age' appears in response
     #
     my $resp_max_age = $resp_minimal->clone;
     $resp_max_age->header(cache_control => 'max-age=3600');
@@ -379,4 +379,52 @@ subtest "Cache-Control directive 'maxage'"=> sub {
     ok ( ($test == 1),
         "... and returns 1" );
     
+};
+subtest "Cache-Control directive 's-maxage'"=> sub {
+    
+    plan tests => 4;
+    
+    my $test;
+    
+    # DO CACHE: 's-maxage' appears in response
+    #
+    my $resp_s_maxage = $resp_minimal->clone;
+    $resp_s_maxage->header(cache_control => 's-maxage=3600');
+    
+    my $pblc_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => 'public',
+        forwarder   => sub { },
+    );
+    
+    warning_like {
+        $test = $pblc_caching->_may_store_in_cache(
+            $rqst_minimal,
+            $resp_s_maxage
+        )
+    }
+        { carped => qr/DO CACHE: 's-maxage' appears in response/ },
+        "DO CACHE: 's-maxage' appears in response cache directives when public";
+    ok ( ($test == 1),
+        "... and returns 1" );
+    
+    # So far... So good!
+    #
+    my $none_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => undef,
+        forwarder   => sub { },
+    );
+    
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_minimal,
+            $resp_s_maxage
+        )
+    }
+        { carped => '' },
+        "DO CACHE: 's-maxage' appears in response cache directives";
+    ok ( (!defined $test or $test == 1), # does not return 0
+        "So far... So good!" );
+        
 };
