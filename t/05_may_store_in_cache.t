@@ -67,7 +67,7 @@ subtest "Request Methods and Responses are understood" => sub {
 
 subtest "Cache-Control directives" => sub {
     
-    plan tests => 7;
+    plan tests => 10;
     
     my $rqst = HTTP::Request->new();
     $rqst->method('HEAD');
@@ -140,5 +140,39 @@ subtest "Cache-Control directives" => sub {
     ok ( (!defined $test or $test == 1), # does not return 0
         "So far... So good!" );
     
-
+    $resp->header(cache_control => undef);
+    
+    
+    # NO CACHE: 'Authorization' appears in request when shared
+    #
+    $rqst->header('Authorization' => 'Basic am9obi5kb2U6c2VjcmV0');
+    
+    # HTTP::Caching as 'public' or 'shared
+    #
+    $http_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => 'public',
+        forwarder   => sub { },
+    );
+    
+    warning_like { $test = $http_caching->_may_store_in_cache($rqst, $resp) }
+        { carped => qr/NO CACHE: 'Authorization' appears/ },
+        "NO CACHE: 'Authorization' appears in request when shared";
+    ok ( (defined $test and $test == 0),
+        "... and returns 0" );
+    
+    # HTTP::Caching as 'public' or 'shared
+    #
+    $http_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => undef,
+        forwarder   => sub { },
+    );
+    
+    # So far... So good!
+    #
+    $test = $http_caching->_may_store_in_cache($rqst, $resp);
+    ok ( (!defined $test or $test == 1), # does not return 0
+        "So far... So good!" );
+    
 }

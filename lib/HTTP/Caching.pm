@@ -421,7 +421,14 @@ sub _may_store_in_cache {
     # not appear in the request, if the cache is shared, unless the
     # response explicitly allows it (see Section 3.2)
     #
-#   TODO
+    if ($self->is_shared) {
+        if ($rqst->header('Authorization')) {
+            carp "NO CACHE: 'Authorization' appears in request when shared\n"
+                if $DEBUG;
+            return 0
+        }
+    };
+#   TODO unless the response explicitly allows it (see Section 3.2)
     
     
     #                                               RFC 7234 Section 3 #6
