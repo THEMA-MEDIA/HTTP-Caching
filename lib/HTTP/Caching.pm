@@ -6,11 +6,11 @@ HTTP::Caching - The RFC 7234 compliant brains to do caching right
 
 =head1 VERSION
 
-Version 0.02 Alpha 01
+Version 0.02 Alpha 02
 
 =cut
 
-our $VERSION = '0.02_01';
+our $VERSION = '0.02_02';
 
 use strict;
 use warnings;
@@ -270,7 +270,7 @@ sub make_request {
             $response = $cache_resp;
         } else {
             $response = $self->_forward($presented_request, @params);
-            $self->_store($presented_request, $response);
+            $self->_update($presented_request, $response);
         }
     }
     
@@ -297,10 +297,19 @@ sub _forward {
     return $forwarded_resp;
 }
 
-sub _store {
+# _update may or may not update the cache
+#
+# depending on the response it _may_store_in_cache()
+# or it might have to invalidate stored responses
+# or update headerfields
+# ... we'll see
+#
+sub _update {
     my $self        = shift;
     my $rqst        = shift;
     my $resp        = shift;
+    
+    return unless $self->_may_store_in_cache($rqst, $resp);
     
     my $request_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
     
@@ -319,30 +328,6 @@ sub _retrieve {
     
     return $resp;
 }
-
-# HTTP::Status::is_cacheable_by_default
-#
-# that subroutine is missing. Until it's added there, it's been monkey-patched
-# here.
-#
-#                            RFC 7231 - HTTP/1.1 Semantics and Content
-#                            Section 6.1. Overview of Status Codes
-#
-#   Responses with status codes that are defined as cacheable by default
-#   (e.g., 200, 203, 204, 206, 300, 301, 404, 405, 410, 414, and 501 in
-#   this specification) can be reused by a cache with heuristic
-#   expiration unless otherwise indicated by the method definition or
-#   explicit cache controls [RFC7234]; all other status codes are not
-#   cacheable by default.
-#
-my $handle = Monkey::Patch::Action::patch_package (
-    'HTTP::Status', 'is_cacheable_by_default', 'add', sub {
-        my $code = shift;
-        $code = $code +0;
-        
-        return any {$_ == $code} (200,203,204,206,300,301,404,405,410,414,501)
-    }
-);
 
 # _may_store_in_cache()
 #
@@ -547,5 +532,30 @@ sub _may_store_in_cache {
     
     return undef;
 }
+
+# HTTP::Status::is_cacheable_by_default
+#
+# that subroutine is missing. Until it's added there, it's been monkey-patched
+# here.
+#
+#                            RFC 7231 - HTTP/1.1 Semantics and Content
+#                            Section 6.1. Overview of Status Codes
+#
+#   Responses with status codes that are defined as cacheable by default
+#   (e.g., 200, 203, 204, 206, 300, 301, 404, 405, 410, 414, and 501 in
+#   this specification) can be reused by a cache with heuristic
+#   expiration unless otherwise indicated by the method definition or
+#   explicit cache controls [RFC7234]; all other status codes are not
+#   cacheable by default.
+#
+my $handle = Monkey::Patch::Action::patch_package (
+    'HTTP::Status', 'is_cacheable_by_default', 'add', sub {
+        my $code = shift;
+        $code = $code +0;
+        
+        return any {$_ == $code} (200,203,204,206,300,301,404,405,410,414,501)
+    }
+);
+
 
 1;
