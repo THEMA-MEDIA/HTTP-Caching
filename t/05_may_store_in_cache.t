@@ -22,7 +22,7 @@ my $resp_minimal = HTTP::Response->new(100);
 
 subtest "Minimal" => sub {
     
-    plan tests => 1;
+    plan tests => 2;
     
     my $test;
     
@@ -32,12 +32,16 @@ subtest "Minimal" => sub {
         forwarder   => sub { },
     );
     
-    # So far... So good!
+    # Fall Through
     #
-    $test = $none_caching->_may_store_in_cache(
-        $rqst_minimal,
-        $resp_minimal
-    );
+    warning_like {
+        $test = $none_caching->_may_store_in_cache(
+            $rqst_minimal,
+            $resp_minimal,
+        )
+    }
+        { carped => qr/NO CACHE: Does not match the six criteria above/ },
+        "Fall Through";
     ok ( (!defined $test or $test == 1), # does not return 0
         "So far... So good!" );
     
