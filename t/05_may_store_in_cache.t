@@ -42,7 +42,7 @@ subtest "Minimal" => sub {
     }
         { carped => qr/NO CACHE: Does not match the six criteria above/ },
         "Fall Through";
-    ok ( (!defined $test or $test == 1), # does not return 0
+    ok ( ( not defined $test ), # does not return 0
         "So far... So good!" );
     
 };
