@@ -20,7 +20,7 @@ $mocked_cache->mock( set => sub { $cache{$_[1]} = $_[2] } );
 $mocked_cache->mock( get => sub { return $cache{$_[1]} } );
 
 my $request = HTTP::Request->new();
-$request->method('TEST');
+$request->method('HEAD');
 $request->uri($URI_LOCATION);
 $request->content('knock knock ...');
 

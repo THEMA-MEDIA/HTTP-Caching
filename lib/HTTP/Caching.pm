@@ -309,6 +309,8 @@ sub _update {
     my $rqst        = shift;
     my $resp        = shift;
     
+    return unless $self->_may_store_in_cache($rqst, $resp);
+    
     my $request_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
     
     $self->cache->set( $request_key => $resp );

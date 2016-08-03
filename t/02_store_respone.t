@@ -19,7 +19,7 @@ $mocked_cache->mock( set => sub { $cache{$_[1]} = $_[2] } );
 $mocked_cache->mock( get => sub { } );
 
 my $request = HTTP::Request->new();
-$request->method('TEST'); # yep, does not exists, thats fine
+$request->method('HEAD');
 $request->uri($URI_LOCATION);
 $request->content('knock knock ...');
 
