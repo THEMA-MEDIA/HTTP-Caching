@@ -9,4 +9,5 @@ t/01_modify_cache_control_headers.t
 t/02_store_respone.t
 t/03_retrieve_response.t
 t/04_naive_roundtrip.t
+t/05_may_store_in_cache.t
 ignore.txt
