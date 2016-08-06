@@ -290,9 +290,12 @@ sub _forward {
     
     my $forwarded_resp = $self->forwarder->($forwarded_rqst, @_);
     
-    croak __PACKAGE__
-        . " response from forwarder is not a HTTP::Response [$forwarded_resp]"
-        unless UNIVERSAL::isa($forwarded_resp,'HTTP::Response');
+    unless ( UNIVERSAL::isa($forwarded_resp,'HTTP::Response') ) {
+        carp __PACKAGE__
+            . " response is not a HTTP::Response [$forwarded_resp]";
+        # rescue from a failed forwarding, HTTP::Caching should not break
+        $forwarded_resp = HTTP::Response->new(502); # Bad Gateway
+    }
     
     return $forwarded_resp;
 }
@@ -376,10 +379,11 @@ sub _retrieve_response {
     my $self        = shift;
     my $resp_key    = shift;
     
-    my $resp = eval { $self->cache->get( $resp_key ) };
-    return $resp unless $@;
+    if (my $resp = eval { $self->cache->get( $resp_key ) } ) {
+        return $resp
+    }
     
-    croak __PACKAGE__
+    carp __PACKAGE__
         . " could not retrieve response from cache with key [$resp_key], $@";
     
     return

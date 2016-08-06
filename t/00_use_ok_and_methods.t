@@ -61,7 +61,7 @@ subtest 'HTTP::Caching make_request' => sub {
 };
 
 subtest 'HTTP::Caching forwarding' => sub {
-    plan tests => 5;
+    plan tests => 6;
     
     my $http_caching = eval {
         HTTP::Caching->new(
@@ -94,13 +94,19 @@ subtest 'HTTP::Caching forwarding' => sub {
         HTTP::Caching->new(
             cache                   => undef,
             cache_type              => 'private',
-            forwarder               => sub { return 1 },
+            forwarder               => sub { 'this is not a HTTP::Response' },
         )
     };
     
-    eval {$errs_caching->make_request($request) };
-    like($@, qr/HTTP::Caching response from forwarder/,
-        '... but do not allow bad responses');
+    my $errs_response;
+    
+    warning_like {
+        $errs_response = $errs_caching->make_request($request)
+    }
+        { carped => qr/HTTP::Caching response is not a HTTP::Response/ },
+        '... does catch for bad interfaces with bad responses';
+    is ($errs_response->code, 502,
+        '... but do not break because of bad responses');
 };
 
 =pod
