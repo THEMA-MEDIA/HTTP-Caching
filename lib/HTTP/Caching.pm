@@ -270,7 +270,7 @@ sub make_request {
             $response = $cache_resp;
         } else {
             $response = $self->_forward($presented_request, @params);
-            $self->_update($presented_request, $response);
+            $self->_store($presented_request, $response);
         }
     }
     
@@ -297,36 +297,92 @@ sub _forward {
     return $forwarded_resp;
 }
 
-# _update may or may not update the cache
+# _store may or may not store the response into the cache
 #
 # depending on the response it _may_store_in_cache()
-# or it might have to invalidate stored responses
-# or update headerfields
-# ... we'll see
 #
-sub _update {
+sub _store {
     my $self        = shift;
     my $rqst        = shift;
     my $resp        = shift;
     
     return unless $self->_may_store_in_cache($rqst, $resp);
     
-    my $request_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
+    if ( my $resp_key = $self->_store_response($resp) ) {
+        my $rqst_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
+        $self->_insert_meta_dict( $rqst_key, $resp_key );
+        return $resp_key;
+    }
     
-    $self->cache->set( $request_key => $resp );
+    return
+}
+
+sub _store_response {
+    my $self        = shift;
+    my $resp        = shift;
     
-    return $request_key;
+    my $resp_key = Digest::MD5::md5_hex(Time::HiRes::time());
+    
+    eval { $self->cache->set( $resp_key => $resp ) };
+    return $resp_key unless $@;
+    
+    croak __PACKAGE__
+        . " could not store response in cache with key [$resp_key], $@";
+    
+    return
+}
+
+sub _insert_meta_dict {
+    my $self        = shift;
+    my $rqst_key    = shift;
+    my $resp_key    = shift;
+    my $meta_data   = shift;
+    
+    my $meta_dict  = $self->cache->get($rqst_key) || {};
+    $meta_dict->{$resp_key} = $meta_data;
+    $self->cache->set( $rqst_key => $meta_dict );
+    
+    return $meta_dict;
 }
 
 sub _retrieve {
     my $self        = shift;
     my $rqst        = shift;
     
-    my $request_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
+    my $rqst_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
+    my $meta_dict = $self->_retrieve_meta_dict($rqst_key);
     
-    my $resp = $self->cache->get( $request_key );
+    return unless $meta_dict;
     
+    # TODO reduce meta_dict
+    
+    # XXX pick one randomly from the list of keys
+    my ($resp_key) = keys %$meta_dict;
+    
+    my $resp = $self->_retrieve_response($resp_key);
     return $resp;
+}
+
+sub _retrieve_meta_dict {
+    my $self        = shift;
+    my $rqst_key    = shift;
+    
+    my $meta_dict  = $self->cache->get($rqst_key);
+    
+    return $meta_dict;
+}
+
+sub _retrieve_response {
+    my $self        = shift;
+    my $resp_key    = shift;
+    
+    my $resp = eval { $self->cache->get( $resp_key ) };
+    return $resp unless $@;
+    
+    croak __PACKAGE__
+        . " could not retrieve response from cache with key [$resp_key], $@";
+    
+    return
 }
 
 # _may_store_in_cache()

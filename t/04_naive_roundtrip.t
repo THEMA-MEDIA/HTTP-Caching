@@ -11,7 +11,6 @@ use Readonly;
 # Although it does look like a proper URI, no, the file does not need to exist.
 Readonly my $URI_LOCATION   => 'file:///tmp/HTTP_Cacing/greetings.txt';
 Readonly my $URI_MD5        => '7d3d0fc115036f144964caafaf2c7df2';
-Readonly my $CONTENT_KEY    => '3e5f1b953da8430c6f88b90ac15d78fa'; # or whatever
 
 # mock cache
 my %cache;
