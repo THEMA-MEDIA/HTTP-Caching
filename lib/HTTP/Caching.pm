@@ -300,6 +300,25 @@ sub _forward {
     return $forwarded_resp;
 }
 
+
+=head1 ABOUT CACHING
+
+If one would read the RFC7234 Section 2. Overview of Cache Operation, it becomes
+clear that a cache can hold multiple responses for the same URI. Caches that
+conform to CHI and many others, typically use a key / value storage. But this
+will become a problem as that it can not use the URI as a key to the various
+responses.
+
+The way it is solved is to create an intermediate meta-dictionary. This can be
+stored by URI as key. Each response will simply be stored with a unique key and
+these keys will be used as the entries in the dictionary.
+
+The meta-dictionary entries will hold (relevant) request and response headers so
+that it willbe more quick to figure wich entrie can be used. Otherwise we would
+had to read the entire responses to analyze them.
+
+=cut
+
 # _store may or may not store the response into the cache
 #
 # depending on the response it _may_store_in_cache()
