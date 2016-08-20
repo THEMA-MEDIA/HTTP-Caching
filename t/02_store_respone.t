@@ -23,7 +23,7 @@ $mocked_cache->mock( get => sub { } );
 
 subtest "Simple Storing" => sub {
     
-    plan tests => 3;
+    plan tests => 5;
     
     my $rqst_normal = $rqst_minimal->clone;
     $rqst_normal->uri($URI_LOCATION);
@@ -44,13 +44,23 @@ subtest "Simple Storing" => sub {
     # don't care about responses, we only want to store in the cache
     $http_caching->make_request($rqst_normal);
     
+    is (keys %cache, 2,
+        'there are 2 items in the cache');
+    
     ok (exists $cache{$URI_MD5}, 
         'stored under the right key');
     
-    isa_ok ($cache{$URI_MD5}, 'HTTP::Response',
+    my @meta_keys = keys $cache{$URI_MD5};
+    
+    isa_ok ($cache{$meta_keys[0]}, 'HTTP::Response',
         '... a HTTP::Request object');
     
-    is ($cache{$URI_MD5}->content, 'Who is there?',
-        '... with the right contnet');
+    is ($cache{$meta_keys[0]}->content, 'Who is there?',
+        '... with the right content');
+    
+    $http_caching->make_request($rqst_normal);
+
+    is (keys %cache, 3,
+        'we store every response that _may_store_in_cache');
     
 };

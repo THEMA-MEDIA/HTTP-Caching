@@ -49,5 +49,4 @@ subtest 'Simple modifiactions' => sub {
     is($response->header('cache-control'), 'no-store, must-revalidate',
         "modified response with existing directives");
     
-
 }

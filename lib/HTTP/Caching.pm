@@ -6,11 +6,11 @@ HTTP::Caching - The RFC 7234 compliant brains to do caching right
 
 =head1 VERSION
 
-Version 0.02 Alpha 02
+Version 0.02 Alpha 04
 
 =cut
 
-our $VERSION = '0.02_02';
+our $VERSION = '0.02_04';
 
 use strict;
 use warnings;
@@ -270,7 +270,7 @@ sub make_request {
             $response = $cache_resp;
         } else {
             $response = $self->_forward($presented_request, @params);
-            $self->_update($presented_request, $response);
+            $self->_store($presented_request, $response);
         }
     }
     
@@ -290,43 +290,131 @@ sub _forward {
     
     my $forwarded_resp = $self->forwarder->($forwarded_rqst, @_);
     
-    croak __PACKAGE__
-        . " response from forwarder is not a HTTP::Response [$forwarded_resp]"
-        unless UNIVERSAL::isa($forwarded_resp,'HTTP::Response');
+    unless ( UNIVERSAL::isa($forwarded_resp,'HTTP::Response') ) {
+        carp __PACKAGE__
+            . " response is not a HTTP::Response [$forwarded_resp]";
+        # rescue from a failed forwarding, HTTP::Caching should not break
+        $forwarded_resp = HTTP::Response->new(502); # Bad Gateway
+    }
     
     return $forwarded_resp;
 }
 
-# _update may or may not update the cache
+
+=head1 ABOUT CACHING
+
+If one would read the RFC7234 Section 2. Overview of Cache Operation, it becomes
+clear that a cache can hold multiple responses for the same URI. Caches that
+conform to CHI and many others, typically use a key / value storage. But this
+will become a problem as that it can not use the URI as a key to the various
+responses.
+
+The way it is solved is to create an intermediate meta-dictionary. This can be
+stored by URI as key. Each response will simply be stored with a unique key and
+these keys will be used as the entries in the dictionary.
+
+The meta-dictionary entries will hold (relevant) request and response headers so
+that it willbe more quick to figure wich entrie can be used. Otherwise we would
+had to read the entire responses to analyze them.
+
+=cut
+
+# _store may or may not store the response into the cache
 #
 # depending on the response it _may_store_in_cache()
-# or it might have to invalidate stored responses
-# or update headerfields
-# ... we'll see
 #
-sub _update {
+sub _store {
     my $self        = shift;
     my $rqst        = shift;
     my $resp        = shift;
     
     return unless $self->_may_store_in_cache($rqst, $resp);
     
-    my $request_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
+    if ( my $resp_key = $self->_store_response($resp) ) {
+        my $rqst_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
+        my $rsqt_stripped = $rqst->clone; $rsqt_stripped->content(undef);
+        my $resp_stripped = $resp->clone; $resp_stripped->content(undef);
+        $self->_insert_meta_dict(
+            $rqst_key,
+            $resp_key,
+            {
+                resp_stripped   => $resp_stripped,
+                rqst_stripped   => $rsqt_stripped,
+            },
+        );
+        return $resp_key;
+    }
     
-    $self->cache->set( $request_key => $resp );
+    return
+}
+
+sub _store_response {
+    my $self        = shift;
+    my $resp        = shift;
     
-    return $request_key;
+    my $resp_key = Digest::MD5::md5_hex(Time::HiRes::time());
+    
+    eval { $self->cache->set( $resp_key => $resp ) };
+    return $resp_key unless $@;
+    
+    croak __PACKAGE__
+        . " could not store response in cache with key [$resp_key], $@";
+    
+    return
+}
+
+sub _insert_meta_dict {
+    my $self        = shift;
+    my $rqst_key    = shift;
+    my $resp_key    = shift;
+    my $meta_data   = shift;
+    
+    my $meta_dict  = $self->cache->get($rqst_key) || {};
+    $meta_dict->{$resp_key} = $meta_data;
+    $self->cache->set( $rqst_key => $meta_dict );
+    
+    return $meta_dict;
 }
 
 sub _retrieve {
     my $self        = shift;
     my $rqst        = shift;
     
-    my $request_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
+    my $rqst_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
+    my $meta_dict = $self->_retrieve_meta_dict($rqst_key);
     
-    my $resp = $self->cache->get( $request_key );
+    return unless $meta_dict;
     
+    # TODO reduce meta_dict
+    
+    # XXX pick one randomly from the list of keys
+    my ($resp_key) = keys %$meta_dict;
+    
+    my $resp = $self->_retrieve_response($resp_key);
     return $resp;
+}
+
+sub _retrieve_meta_dict {
+    my $self        = shift;
+    my $rqst_key    = shift;
+    
+    my $meta_dict  = $self->cache->get($rqst_key);
+    
+    return $meta_dict;
+}
+
+sub _retrieve_response {
+    my $self        = shift;
+    my $resp_key    = shift;
+    
+    if (my $resp = eval { $self->cache->get( $resp_key ) } ) {
+        return $resp
+    }
+    
+    carp __PACKAGE__
+        . " could not retrieve response from cache with key [$resp_key], $@";
+    
+    return
 }
 
 # _may_store_in_cache()
