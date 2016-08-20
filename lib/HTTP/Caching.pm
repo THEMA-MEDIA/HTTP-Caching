@@ -6,11 +6,11 @@ HTTP::Caching - The RFC 7234 compliant brains to do caching right
 
 =head1 VERSION
 
-Version 0.02 Alpha 03
+Version 0.02 Alpha 04
 
 =cut
 
-our $VERSION = '0.02_03';
+our $VERSION = '0.02_04';
 
 use strict;
 use warnings;
