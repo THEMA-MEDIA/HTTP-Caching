@@ -332,7 +332,16 @@ sub _store {
     
     if ( my $resp_key = $self->_store_response($resp) ) {
         my $rqst_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
-        $self->_insert_meta_dict( $rqst_key, $resp_key );
+        my $rsqt_stripped = $rqst->clone; $rsqt_stripped->content(undef);
+        my $resp_stripped = $resp->clone; $resp_stripped->content(undef);
+        $self->_insert_meta_dict(
+            $rqst_key,
+            $resp_key,
+            {
+                resp_stripped   => $resp_stripped,
+                rqst_stripped   => $rsqt_stripped,
+            },
+        );
         return $resp_key;
     }
     
