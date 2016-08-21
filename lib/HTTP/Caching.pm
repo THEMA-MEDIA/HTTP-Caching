@@ -385,7 +385,17 @@ sub _retrieve {
     
     return unless $meta_dict;
     
-    # TODO reduce meta_dict
+    foreach my $meta_key (keys %$meta_dict) {
+        if ( my $status = $self->_may_reuse_from_cache(
+            $rqst,
+            $meta_dict->{$meta_key}{rqst_stripped},
+            $meta_dict->{$meta_key}{resp_stripped}
+        ) ) {
+            $meta_dict->{$meta_key}{status} = $status
+        } else {
+            delete $meta_dict->{$meta_key}
+        }
+    }
     
     # XXX pick one randomly from the list of keys
     my ($resp_key) = keys %$meta_dict;
@@ -619,6 +629,32 @@ sub _may_store_in_cache {
         if $DEBUG;
     
     return undef;
+}
+
+
+# _may_reuse_from_cache
+#
+# my $status = _may_reuse_from_cache (
+#     $presented_request,
+#     $stored_response,
+#     $asociated_request,
+# )
+#
+# will return false if the stored response can not be used for this request at
+# all. In all other cases, it either
+#   - can be used, because it matches all the criteria and os fresh
+#   - is stale and can be used if needed
+#   - needs revalidation
+#
+# see RFC 7234 Section 4: Constructing Responses from Caches
+#
+sub _may_reuse_from_cache {
+    my $self            = shift;
+    my $rqst_presented  = shift;
+    my $resp_stored     = shift;
+    my $rqst_asociated  = shift;
+    
+    return 1;
 }
 
 # HTTP::Status::is_cacheable_by_default
