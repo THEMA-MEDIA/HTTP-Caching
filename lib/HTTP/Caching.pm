@@ -654,6 +654,60 @@ sub _may_reuse_from_cache {
     my $resp_stored     = shift;
     my $rqst_asociated  = shift;
     
+    #                                               RFC 7234 Section 4
+    #
+    # When presented with a request, a cache MUST NOT reuse a stored
+    # response, unless:
+    
+    
+    #                                               RFC 7234 Section 4 #1
+    #
+    # The presented effective request URI (Section 5.5 of [RFC7230]) and
+    # that of the stored response match, and
+    
+    
+    #                                               RFC 7234 Section 4 #2
+    #
+    # the request method associated with the stored response allows it
+    # to be used for the presented request, and
+    
+    
+    #                                               RFC 7234 Section 4 #3
+    #
+    # selecting header fields nominated by the stored response (if any)
+    # match those presented (see Section 4.1), and
+    
+    
+    #                                               RFC 7234 Section 4 #4
+    #
+    # the presented request does not contain the no-cache pragma
+    # (Section 5.4), nor the no-cache cache directive (Section 5.2.1),
+    # unless the stored response is successfully validated
+    # (Section 4.3), and
+    
+    
+    #                                               RFC 7234 Section 4 #5
+    #
+    #the stored response does not contain the no-cache cache directive
+    # (Section 5.2.2.2), unless it is successfully validated
+    # (Section 4.3), and
+    
+    
+    #                                               RFC 7234 Section 4 #6
+    #
+    # the stored response is either:
+    #
+    # - fresh (see Section 4.2), or
+    #
+    
+    
+    # - allowed to be served stale (see Section 4.2.4), or
+    #
+    
+    
+    # - successfully validated (see Section 4.3).
+    #
+
     return 1;
 }
 
