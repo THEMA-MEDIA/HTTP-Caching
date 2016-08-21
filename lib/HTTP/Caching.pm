@@ -637,7 +637,7 @@ sub _may_store_in_cache {
 # my $status = _may_reuse_from_cache (
 #     $presented_request,
 #     $stored_response,
-#     $asociated_request,
+#     $associated_request,
 # )
 #
 # will return false if the stored response can not be used for this request at
@@ -652,7 +652,7 @@ sub _may_reuse_from_cache {
     my $self            = shift;
     my $rqst_presented  = shift;
     my $resp_stored     = shift;
-    my $rqst_asociated  = shift;
+    my $rqst_associated = shift;
     
     #                                               RFC 7234 Section 4
     #
