@@ -663,19 +663,19 @@ sub _may_reuse_from_cache {
     #                                               RFC 7234 Section 4 #1
     #
     # The presented effective request URI (Section 5.5 of [RFC7230]) and
-    # that of the stored response match, and
+    # that of the stored response match
     
     
     #                                               RFC 7234 Section 4 #2
     #
     # the request method associated with the stored response allows it
-    # to be used for the presented request, and
+    # to be used for the presented request
     
     
     #                                               RFC 7234 Section 4 #3
     #
     # selecting header fields nominated by the stored response (if any)
-    # match those presented (see Section 4.1), and
+    # match those presented (see Section 4.1)
     
     
     #                                               RFC 7234 Section 4 #4
@@ -683,14 +683,14 @@ sub _may_reuse_from_cache {
     # the presented request does not contain the no-cache pragma
     # (Section 5.4), nor the no-cache cache directive (Section 5.2.1),
     # unless the stored response is successfully validated
-    # (Section 4.3), and
+    # (Section 4.3)
     
     
     #                                               RFC 7234 Section 4 #5
     #
     #the stored response does not contain the no-cache cache directive
     # (Section 5.2.2.2), unless it is successfully validated
-    # (Section 4.3), and
+    # (Section 4.3)
     
     
     #                                               RFC 7234 Section 4 #6
