@@ -757,7 +757,7 @@ sub _may_reuse_from_cache {
     # - successfully validated (see Section 4.3).
     #
 
-    return 1;
+    return undef;
 }
 
 # HTTP::Status::is_cacheable_by_default

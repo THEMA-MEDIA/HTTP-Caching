@@ -46,8 +46,8 @@ subtest "matching URI's" => sub {
     }
         { carped => "" },
         "URI's are identical";
-    ok ( (defined $test and $test == 0),
-        "... and returns 0" );
+    ok ( ( not defined $test ),
+        "... and falls through" );
     
     my $rqst_normalized = $rqst_minimal->clone;
     $rqst_normalized->uri('http://LOCALHOST:80/');
@@ -61,8 +61,8 @@ subtest "matching URI's" => sub {
     }
         { carped => "" },
         "URI's do match";
-    ok ( (defined $test and $test == 0),
-        "... and returns 0" );
+    ok ( ( not defined $test ),
+        "... and falls through" );
     
     
     my $rqst_different = $rqst_minimal->clone;
@@ -109,8 +109,8 @@ subtest "matching Request Methods" => sub {
     }
         { carped => "" },
         "Methods are identical";
-    ok ( (defined $test and $test == 0),
-        "... and returns 0" );
+    ok ( ( not defined $test ),
+        "... and falls through" );
     
     my $rqst_normalized = $rqst_minimal->clone;
     $rqst_normalized->method('head');
@@ -167,8 +167,8 @@ subtest "matching Nominated Headers in 'Vary'" => sub {
     }
         { carped => "" },
         "No 'Vary'";
-    ok ( (defined $test and $test == 0),
-        "... and returns 0" );
+    ok ( ( not defined $test ),
+        "... and falls through" );
     
     my $resp_vary = $resp_minimal->clone;
     $resp_vary->header('Vary' => 'FOO');
@@ -182,8 +182,8 @@ subtest "matching Nominated Headers in 'Vary'" => sub {
     }
         { carped => "" },
         "'Nominated Headers are not present in either request";
-    ok ( (defined $test and $test == 0),
-        "... and returns 0" );
+    ok ( ( not defined $test ),
+        "... and falls through" );
     
     
     my $rqst_foo_bar = $rqst_minimal->clone;
@@ -226,8 +226,8 @@ subtest "matching Nominated Headers in 'Vary'" => sub {
     }
         { carped => "" },
         "Nominated Headers are the same";
-    ok ( (defined $test and $test == 0),
-        "... and returns 0" );
+    ok ( ( not defined $test ),
+        "... and falls through" );
     
     my $resp_star = $resp_minimal->clone;
     $resp_star->header('Vary' => '*');
