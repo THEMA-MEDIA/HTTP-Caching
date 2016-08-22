@@ -763,7 +763,19 @@ sub _may_reuse_from_cache {
     #the stored response does not contain the no-cache cache directive
     # (Section 5.2.2.2), unless it is successfully validated
     # (Section 4.3)
-    
+    #
+    do {
+        # generate an array with cache-control directives
+        my @resp_directives =
+            map { my $str = $_; $str =~ s/^\s+//; $str =~ s/\s+$//; $str }
+            split ',', scalar $resp_stored->header('cache-control') || '';
+        
+        if (any { lc $_ eq 'no-cache' } @resp_directives) {
+            carp "NO CACHE: 'no-cache' appears in response cache directives\n"
+                if $DEBUG;
+            return 2 # must revalidate
+        }
+    };
     
     #                                               RFC 7234 Section 4 #6
     #

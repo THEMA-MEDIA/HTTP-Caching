@@ -1,4 +1,4 @@
-use Test::Most tests => 4;
+use Test::Most tests => 5;
 
 use HTTP::Caching;
 
@@ -270,7 +270,7 @@ subtest "matching no-cache request" => sub {
             $rqst_minimal
         )
     }
-        { carped => qr/NO CACHE: 'no-cache' appears/ },
+        { carped => qr/NO CACHE: 'no-cache' appears in request/ },
         "NO CACHE: 'no-cache' appears in request cache directives";
     ok ( (defined $test and $test == 2),
         "... and returns 2" );
@@ -287,6 +287,37 @@ subtest "matching no-cache request" => sub {
     }
         { carped => qr/NO CACHE: Pragma: 'no-cache' appears in request/ },
         "NO CACHE: Pragma: 'no-cache' appears in request";
+    ok ( (defined $test and $test == 2),
+        "... and returns 2" );
+    
+};
+
+
+subtest "matching no-cache response" => sub {
+    
+    plan tests => 2;
+    
+    my $test;
+    
+    my $none_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => undef,
+        forwarder   => sub { },
+    );
+    
+    
+    my $resp_cache_control = $rqst_minimal->clone;
+    $resp_cache_control->header('cache-control' => 'no-cache');
+    
+    warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_minimal,
+            $resp_cache_control,
+            $rqst_minimal
+        )
+    }
+        { carped => qr/NO CACHE: 'no-cache' appears in response/ },
+        "NO CACHE: 'no-cache' appears in response cache directives";
     ok ( (defined $test and $test == 2),
         "... and returns 2" );
     
