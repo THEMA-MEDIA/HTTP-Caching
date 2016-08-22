@@ -66,18 +66,18 @@ subtest "matching URI's" => sub {
     
     
     my $rqst_different = $rqst_minimal->clone;
-    $rqst_normalized->uri('http://localhost:8080/');
+    $rqst_different->uri('http://localhost:8080/');
     
     warning_like {
         $test = $none_caching->_may_reuse_from_cache(
-            $rqst_normalized,
+            $rqst_different,
             $resp_stored,
             $rqst_associated
         )
     }
         { carped => qr/NO REUSE: URI's do not match/ },
         "NO REUSE: URI's do not match";
-    ok ( (not defined $test),
-        "... and returns undef" );
+    ok ( (defined $test and $test == 0),
+        "... and returns 0" );
     
-}
+};

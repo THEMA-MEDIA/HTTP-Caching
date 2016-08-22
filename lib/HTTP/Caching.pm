@@ -670,7 +670,7 @@ sub _may_reuse_from_cache {
         unless ( URI::eq($rqst_presented->uri, $rqst_associated->uri) ) {
             carp "NO REUSE: URI's do not match\n"
                 if $DEBUG;
-            return undef
+            return 0
         }
     };
     
