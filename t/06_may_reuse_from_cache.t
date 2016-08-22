@@ -1,4 +1,4 @@
-use Test::Most tests => 1;
+use Test::Most tests => 3;
 
 use HTTP::Caching;
 
@@ -140,6 +140,107 @@ subtest "matching Request Methods" => sub {
     }
         { carped => qr/NO REUSE: Methods do not match/ },
         "NO REUSE: Methods do not match";
+    ok ( (defined $test and $test == 0),
+        "... and returns 0" );
+    
+};
+
+
+subtest "matching Nominated Headers in 'Vary'" => sub {
+    
+    plan tests => 12;
+    
+    my $test;
+    
+    my $none_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => undef,
+        forwarder   => sub { },
+    );
+    
+        warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_minimal,
+            $resp_minimal,
+            $rqst_minimal
+        )
+    }
+        { carped => "" },
+        "No 'Vary'";
+    ok ( (defined $test and $test == 0),
+        "... and returns 0" );
+    
+    my $resp_vary = $resp_minimal->clone;
+    $resp_vary->header('Vary' => 'FOO');
+    
+    warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_minimal,
+            $resp_vary,
+            $rqst_minimal,
+        )
+    }
+        { carped => "" },
+        "'Nominated Headers are not present in either request";
+    ok ( (defined $test and $test == 0),
+        "... and returns 0" );
+    
+    
+    my $rqst_foo_bar = $rqst_minimal->clone;
+    $rqst_foo_bar->header('FOO' => 'bar');
+    
+    warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_minimal,
+            $resp_vary,
+            $rqst_foo_bar
+        )
+    }
+        { carped => qr/NO REUSE: Nominated headers in 'Vary' do not match/ },
+        "NO REUSE: Nominated Headers are not both in each request";
+    ok ( (defined $test and $test == 0),
+        "... and returns 0" );
+    
+    
+    my $rqst_foo_baz = $rqst_minimal->clone;
+    $rqst_foo_baz->header('FOO' => 'baz');
+    
+    warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_foo_baz,
+            $resp_vary,
+            $rqst_foo_bar
+        )
+    }
+        { carped => qr/NO REUSE: Nominated headers in 'Vary' do not match/ },
+        "NO REUSE: Nominated Headers do not have the same value";
+    ok ( (defined $test and $test == 0),
+        "... and returns 0" );
+    
+    warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_foo_bar,
+            $resp_vary,
+            $rqst_foo_bar
+        )
+    }
+        { carped => "" },
+        "Nominated Headers are the same";
+    ok ( (defined $test and $test == 0),
+        "... and returns 0" );
+    
+    my $resp_star = $resp_minimal->clone;
+    $resp_star->header('Vary' => '*');
+    
+    warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_foo_bar,
+            $resp_star,
+            $rqst_foo_bar
+        )
+    }
+        { carped => qr/NO REUSE: 'Vary' equals '*'/ },
+        "NO REUSE: 'Vary' equals '*'";
     ok ( (defined $test and $test == 0),
         "... and returns 0" );
     

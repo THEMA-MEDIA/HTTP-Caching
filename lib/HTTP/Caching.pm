@@ -698,6 +698,33 @@ sub _may_reuse_from_cache {
     #
     # selecting header fields nominated by the stored response (if any)
     # match those presented (see Section 4.1)
+    if ( $resp_stored->header('Vary') ) {
+        
+        if ( scalar $resp_stored->header('Vary') eq '*' ) {
+            carp "NO REUSE: 'Vary' equals '*'\n"
+                if $DEBUG;
+            return 0
+        }
+        
+        #create an array with nominated headers
+        my @vary_headers =
+            map { my $str = $_; $str =~ s/^\s+//; $str =~ s/\s+$//; $str }
+            split ',', scalar $resp_stored->header('Vary') || '';
+        
+        foreach my $header ( @vary_headers ) {
+            my $header_presented = $rqst_presented->header($header) || '';
+            my $header_associated = $rqst_associated->header($header) || '';
+            unless ( $header_presented eq $header_associated ) {
+                carp "NO REUSE: Nominated headers in 'Vary' do not match\n"
+                    if $DEBUG;
+                return 0
+            }
+        }
+    }
+    #
+    # TODO: According to Section 4.1, we could do normalization and reordering
+    #       This requires further investigation and is worth doing to increase
+    #       the hit chance
     
     
     #                                               RFC 7234 Section 4 #4
