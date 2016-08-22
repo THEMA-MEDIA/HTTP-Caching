@@ -679,6 +679,19 @@ sub _may_reuse_from_cache {
     #
     # the request method associated with the stored response allows it
     # to be used for the presented request
+    #
+    do {
+        unless ( $rqst_presented->method eq $rqst_associated->method ) {
+            carp "NO REUSE: Methods do not match\n"
+                if $DEBUG;
+            return 0
+        }
+    };
+    #
+    # NOTE: We did not make the test case insensitive, according to RFC 7231.
+    #
+    # NOTE: We might want to extend it so that we can serve a chopped response
+    #       where the presented request is a HEAD request
     
     
     #                                               RFC 7234 Section 4 #3

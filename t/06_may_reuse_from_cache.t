@@ -81,3 +81,66 @@ subtest "matching URI's" => sub {
         "... and returns 0" );
     
 };
+
+
+subtest "matching Request Methods" => sub {
+    
+    plan tests => 6;
+    
+    my $test;
+    
+    my $none_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => undef,
+        forwarder   => sub { },
+    );
+    
+    
+    my $rqst_identical  = $rqst_minimal->clone;
+    my $resp_stored     = $resp_minimal->clone;
+    my $rqst_associated = $rqst_minimal->clone;
+    
+    warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_identical,
+            $resp_stored,
+            $rqst_associated
+        )
+    }
+        { carped => "" },
+        "Methods are identical";
+    ok ( (defined $test and $test == 0),
+        "... and returns 0" );
+    
+    my $rqst_normalized = $rqst_minimal->clone;
+    $rqst_normalized->method('head');
+    
+    warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_normalized,
+            $resp_stored,
+            $rqst_associated
+        )
+    }
+        { carped => qr/NO REUSE: Methods do not match/ },
+        "NO REUSE: Methods are case-sensitive";
+    ok ( (defined $test and $test == 0),
+        "... and returns 0" );
+    
+    
+    my $rqst_different = $rqst_minimal->clone;
+    $rqst_different->method('OPTIONS');
+    
+    warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_different,
+            $resp_stored,
+            $rqst_associated
+        )
+    }
+        { carped => qr/NO REUSE: Methods do not match/ },
+        "NO REUSE: Methods do not match";
+    ok ( (defined $test and $test == 0),
+        "... and returns 0" );
+    
+};
