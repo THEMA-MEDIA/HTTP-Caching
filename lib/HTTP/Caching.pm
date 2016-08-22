@@ -783,7 +783,15 @@ sub _may_reuse_from_cache {
     #
     # - fresh (see Section 4.2), or
     #
-    
+    do {
+        if ($resp_stored->is_fresh(heuristic_expiry => undef)) {
+            carp "DO CACHE: Response is fresh\n"
+                if $DEBUG;
+            return 1
+        }
+    };
+    #
+    # TODO: heuristic_expiry => undef should be a option, not hardcoded
     
     # - allowed to be served stale (see Section 4.2.4), or
     #

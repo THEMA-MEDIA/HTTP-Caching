@@ -1,4 +1,4 @@
-use Test::Most tests => 5;
+use Test::Most tests => 6;
 
 use HTTP::Caching;
 
@@ -306,7 +306,7 @@ subtest "matching no-cache response" => sub {
     );
     
     
-    my $resp_cache_control = $rqst_minimal->clone;
+    my $resp_cache_control = $resp_minimal->clone;
     $resp_cache_control->header('cache-control' => 'no-cache');
     
     warning_like {
@@ -322,5 +322,74 @@ subtest "matching no-cache response" => sub {
         "... and returns 2" );
     
 };
+
+
+subtest "is fresh" => sub {
+    
+    plan tests => 6;
+    
+    my $test;
+    
+    my $none_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => undef,
+        forwarder   => sub { },
+    );
+    
+    
+    my $resp_max_age = $resp_minimal->clone;
+    $resp_max_age->header('Cache-Control' => 'max-age= 1');
+    
+    warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_minimal,
+            $resp_max_age,
+            $rqst_minimal
+        )
+    }
+        { carped => qr/DO CACHE: Response is fresh/ },
+        "DO CACHE: Response is fresh: max-age=1";
+    ok ( (defined $test and $test == 1),
+        "... and returns 1" );
+    
+    
+    my $resp_expires = $resp_minimal->clone;
+    $resp_expires->header('Expires' => 'Thu, 31 Dec 2099 23:59:59');
+    
+    warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_minimal,
+            $resp_expires,
+            $rqst_minimal
+        )
+    }
+        { carped => qr/DO CACHE: Response is fresh/ },
+        "DO CACHE: Response is fresh: Expires end of the century";
+    ok ( (defined $test and $test == 1),
+        "... and returns 1" );
+    
+    
+    my $resp_not_fresh = $resp_minimal->clone;
+    $resp_not_fresh->header('Expires' => 'Thu, 01 Jan 1970 01:01:00');
+    #
+    # XXX don't ask, but 00:00:00, begining of epoch, does not work
+    
+    warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_minimal,
+            $resp_not_fresh,
+            $rqst_minimal
+        )
+    }
+        { carped => "" },
+        "NO CACHE: Response is fresh: Expires loooooong ago";
+    ok ( ( not defined $test ),
+        "... and falls through" );
+    
+};
+
+
+
+
 
 
