@@ -21,6 +21,7 @@ use HTTP::Method;
 use List::MoreUtils qw{ any };
 use Monkey::Patch::Action;
 use Time::HiRes;
+use URI;
 
 use Moo;
 use MooX::Types::MooseLike::Base ':all';
@@ -664,6 +665,14 @@ sub _may_reuse_from_cache {
     #
     # The presented effective request URI (Section 5.5 of [RFC7230]) and
     # that of the stored response match
+    #
+    do {
+        unless ( URI::eq($rqst_presented->uri, $rqst_associated->uri) ) {
+            carp "NO REUSE: URI's do not match\n"
+                if $DEBUG;
+            return undef
+        }
+    };
     
     
     #                                               RFC 7234 Section 4 #2
