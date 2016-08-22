@@ -720,7 +720,7 @@ sub _may_reuse_from_cache {
                 return 0
             }
         }
-    }
+    };
     #
     # TODO: According to Section 4.1, we could do normalization and reordering
     #       This requires further investigation and is worth doing to increase
@@ -733,6 +733,29 @@ sub _may_reuse_from_cache {
     # (Section 5.4), nor the no-cache cache directive (Section 5.2.1),
     # unless the stored response is successfully validated
     # (Section 4.3)
+    #
+    do {
+        # generate an array with cache-control directives
+        my @rqst_directives =
+            map { my $str = $_; $str =~ s/^\s+//; $str =~ s/\s+$//; $str }
+            split ',', scalar $rqst_presented->header('cache-control') || '';
+        
+        if (any { lc $_ eq 'no-cache' } @rqst_directives) {
+            carp "NO CACHE: 'no-cache' appears in request cache directives\n"
+                if $DEBUG;
+            return 2 # must revalidate
+        }
+        
+        if (
+            $rqst_presented->header('Pragma')
+            and
+            scalar $rqst_presented->header('Pragma') =~ /no-cache/
+        ) {
+            carp "NO CACHE: Pragma: 'no-cache' appears in request\n"
+                if $DEBUG;
+            return 2 # must revalidate
+        }
+    };
     
     
     #                                               RFC 7234 Section 4 #5

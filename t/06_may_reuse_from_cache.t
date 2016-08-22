@@ -1,4 +1,4 @@
-use Test::Most tests => 3;
+use Test::Most tests => 4;
 
 use HTTP::Caching;
 
@@ -245,3 +245,51 @@ subtest "matching Nominated Headers in 'Vary'" => sub {
         "... and returns 0" );
     
 };
+
+
+subtest "matching no-cache request" => sub {
+    
+    plan tests => 4;
+    
+    my $test;
+    
+    my $none_caching = HTTP::Caching->new(
+        cache       => undef,
+        cache_type  => undef,
+        forwarder   => sub { },
+    );
+    
+    
+    my $rqst_cache_control = $rqst_minimal->clone;
+    $rqst_cache_control->header('cache-control' => 'no-cache');
+    
+    warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_cache_control,
+            $resp_minimal,
+            $rqst_minimal
+        )
+    }
+        { carped => qr/NO CACHE: 'no-cache' appears/ },
+        "NO CACHE: 'no-cache' appears in request cache directives";
+    ok ( (defined $test and $test == 2),
+        "... and returns 2" );
+    
+    my $rqst_pragma = $rqst_minimal->clone;
+    $rqst_pragma->header('Pragma' => 'no-cache');
+    
+    warning_like {
+        $test = $none_caching->_may_reuse_from_cache(
+            $rqst_pragma,
+            $resp_minimal,
+            $rqst_minimal
+        )
+    }
+        { carped => qr/NO CACHE: Pragma: 'no-cache' appears in request/ },
+        "NO CACHE: Pragma: 'no-cache' appears in request";
+    ok ( (defined $test and $test == 2),
+        "... and returns 2" );
+    
+};
+
+
