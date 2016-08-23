@@ -14,6 +14,7 @@ Readonly my $URI_MD5        => '7d3d0fc115036f144964caafaf2c7df2';
 
 my $rqst_minimal = HTTP::Request->new('HEAD');
 my $resp_minimal = HTTP::Response->new(100);
+$resp_minimal->header(cache_control => 'max-age=1');
 
 # mock cache
 my %cache;
