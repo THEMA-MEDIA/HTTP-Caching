@@ -408,9 +408,66 @@ sub _retrieve {
     
     my @okay_keys =
         grep { $meta_dict->{$_}{reuse_status} & $REUSE_IS_OK} @meta_keys;
-    my ($resp_key) = @okay_keys;
-    my $resp = $self->_retrieve_response($resp_key);
-    return $resp;
+    
+    if (scalar @okay_keys) {
+        #
+        # TODO: do content negotiation if possible
+        #
+        # TODO: Sort to select lates response
+        #
+        my ($resp_key) = @okay_keys;
+        my $resp = $self->_retrieve_response($resp_key);
+        return $resp
+    }
+    
+    my @vldt_keys =
+        grep { $meta_dict->{$_}{reuse_status} & $REUSE_REVALIDATE} @meta_keys;
+    
+    if (scalar @vldt_keys) {
+        #
+        #                                           RFC 7234 Section 4.3.1
+        #
+        # Sending a Validation Request
+        #
+        my ($resp_key) = @vldt_keys;
+        my $resp_stripped = $meta_dict->{$resp_key}{resp_stripped};
+        
+        # Assume we have validation headers, otherwise we'll need a HEAD request
+        #
+        my $etag = $resp_stripped->header('ETag');
+        my $last = $resp_stripped->header('Last-Modified');
+        
+        my $rqst_validate = $rqst->clone;
+        $rqst_validate->header('If-None-Match' => $etag) if $etag;
+        $rqst_validate->header('If-Modified-Since' => $last) if $last;
+        
+        my $resp_validate = $self->_forward($rqst_validate);
+        
+        #                                           RFC 7234 Section 4.3.3.
+        #
+        # Handling a Validation Response
+        #
+        # Cache handling of a response to a conditional request is dependent
+        # upon its status code:
+        
+        # A 304 (Not Modified) response status code indicates that the
+        # stored response can be updated and reused; see Section 4.3.4.
+        
+        # A full response (i.e., one with a payload body) indicates that
+        # none of the stored responses nominated in the conditional request
+        # is suitable.  Instead, the cache MUST use the full response to
+        # satisfy the request and MAY replace the stored response(s).
+        
+        # However, if a cache receives a 5xx (Server Error) response while
+        # attempting to validate a response, it can either forward this
+        # response to the requesting client, or act as if the server failed
+        # to respond.  In the latter case, the cache MAY send a previously
+        # stored response (see Section 4.2.4).
+        
+        return $resp_validate;
+    }
+    
+    return undef;
 }
 
 sub _retrieve_meta_dict {
