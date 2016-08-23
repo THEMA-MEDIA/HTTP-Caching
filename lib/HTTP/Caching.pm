@@ -6,11 +6,11 @@ HTTP::Caching - The RFC 7234 compliant brains to do caching right
 
 =head1 VERSION
 
-Version 0.02 Alpha 04
+Version 0.02 Alpha 05
 
 =cut
 
-our $VERSION = '0.02_04';
+our $VERSION = '0.02_05';
 
 use strict;
 use warnings;
@@ -21,11 +21,21 @@ use HTTP::Method;
 use List::MoreUtils qw{ any };
 use Monkey::Patch::Action;
 use Time::HiRes;
+use URI;
 
 use Moo;
 use MooX::Types::MooseLike::Base ':all';
 
 our $DEBUG = 0;
+
+use Readonly;
+
+Readonly my $REUSE_NO_MATCH             => 0; # mismatch of headers etc
+Readonly my $REUSE_IS_OK                => 1;
+Readonly my $REUSE_IS_STALE             => 2;
+Readonly my $REUSE_REVALIDATE           => 4;
+Readonly my $REUSE_IS_STALE_OK          => $REUSE_IS_STALE | $REUSE_IS_OK;
+Readonly my $REUSE_IS_STALE_REVALIDATE  => $REUSE_IS_STALE | $REUSE_REVALIDATE;
 
 =head1 SYNOPSIS
 
@@ -385,7 +395,17 @@ sub _retrieve {
     
     return unless $meta_dict;
     
-    # TODO reduce meta_dict
+    foreach my $meta_key (keys %$meta_dict) {
+        if ( my $status = $self->_may_reuse_from_cache(
+            $rqst,
+            $meta_dict->{$meta_key}{resp_stripped},
+            $meta_dict->{$meta_key}{rqst_stripped}
+        ) ) {
+            $meta_dict->{$meta_key}{status} = $status
+        } else {
+            delete $meta_dict->{$meta_key}
+        }
+    }
     
     # XXX pick one randomly from the list of keys
     my ($resp_key) = keys %$meta_dict;
@@ -619,6 +639,239 @@ sub _may_store_in_cache {
         if $DEBUG;
     
     return undef;
+}
+
+
+# _may_reuse_from_cache
+#
+# my $status = _may_reuse_from_cache (
+#     $presented_request,
+#     $stored_response,
+#     $associated_request,
+# )
+#
+# will return false if the stored response can not be used for this request at
+# all. In all other cases, it either
+#   - can be used, because it matches all the criteria and os fresh
+#   - is stale and can be used if needed
+#   - needs revalidation
+#
+# see RFC 7234 Section 4: Constructing Responses from Caches
+#
+sub _may_reuse_from_cache {
+    my $self            = shift;
+    my $rqst_presented  = shift;
+    my $resp_stored     = shift;
+    my $rqst_associated = shift;
+    
+    #                                               RFC 7234 Section 4
+    #
+    # When presented with a request, a cache MUST NOT reuse a stored
+    # response, unless:
+    
+    
+    #                                               RFC 7234 Section 4 #1
+    #
+    # The presented effective request URI (Section 5.5 of [RFC7230]) and
+    # that of the stored response match
+    #
+    do {
+        unless ( URI::eq($rqst_presented->uri, $rqst_associated->uri) ) {
+            carp "NO REUSE: URI's do not match\n"
+                if $DEBUG;
+            return $REUSE_NO_MATCH
+        }
+    };
+    
+    
+    #                                               RFC 7234 Section 4 #2
+    #
+    # the request method associated with the stored response allows it
+    # to be used for the presented request
+    #
+    do {
+        unless ( $rqst_presented->method eq $rqst_associated->method ) {
+            carp "NO REUSE: Methods do not match\n"
+                if $DEBUG;
+            return $REUSE_NO_MATCH
+        }
+    };
+    #
+    # NOTE: We did not make the test case insensitive, according to RFC 7231.
+    #
+    # NOTE: We might want to extend it so that we can serve a chopped response
+    #       where the presented request is a HEAD request
+    
+    
+    #                                               RFC 7234 Section 4 #3
+    #
+    # selecting header fields nominated by the stored response (if any)
+    # match those presented (see Section 4.1)
+    if ( $resp_stored->header('Vary') ) {
+        
+        if ( scalar $resp_stored->header('Vary') eq '*' ) {
+            carp "NO REUSE: 'Vary' equals '*'\n"
+                if $DEBUG;
+            return $REUSE_NO_MATCH
+        }
+        
+        #create an array with nominated headers
+        my @vary_headers =
+            map { my $str = $_; $str =~ s/^\s+//; $str =~ s/\s+$//; $str }
+            split ',', scalar $resp_stored->header('Vary') || '';
+        
+        foreach my $header ( @vary_headers ) {
+            my $header_presented = $rqst_presented->header($header) || '';
+            my $header_associated = $rqst_associated->header($header) || '';
+            unless ( $header_presented eq $header_associated ) {
+                carp "NO REUSE: Nominated headers in 'Vary' do not match\n"
+                    if $DEBUG;
+                return $REUSE_NO_MATCH
+            }
+        }
+    };
+    #
+    # TODO: According to Section 4.1, we could do normalization and reordering
+    #       This requires further investigation and is worth doing to increase
+    #       the hit chance
+    
+    
+    #                                               RFC 7234 Section 4 #4
+    #
+    # the presented request does not contain the no-cache pragma
+    # (Section 5.4), nor the no-cache cache directive (Section 5.2.1),
+    # unless the stored response is successfully validated
+    # (Section 4.3)
+    #
+    do {
+        # generate an array with cache-control directives
+        my @rqst_directives =
+            map { my $str = $_; $str =~ s/^\s+//; $str =~ s/\s+$//; $str }
+            split ',', scalar $rqst_presented->header('cache-control') || '';
+        
+        if (any { lc $_ eq 'no-cache' } @rqst_directives) {
+            carp "NO REUSE: 'no-cache' appears in request cache directives\n"
+                if $DEBUG;
+            return $REUSE_REVALIDATE
+        }
+        
+        if (
+            $rqst_presented->header('Pragma')
+            and
+            scalar $rqst_presented->header('Pragma') =~ /no-cache/
+        ) {
+            carp "NO REUSE: Pragma: 'no-cache' appears in request\n"
+                if $DEBUG;
+            return $REUSE_REVALIDATE
+        }
+    };
+    
+    
+    #                                               RFC 7234 Section 4 #5
+    #
+    #the stored response does not contain the no-cache cache directive
+    # (Section 5.2.2.2), unless it is successfully validated
+    # (Section 4.3)
+    #
+    do {
+        # generate an array with cache-control directives
+        my @resp_directives =
+            map { my $str = $_; $str =~ s/^\s+//; $str =~ s/\s+$//; $str }
+            split ',', scalar $resp_stored->header('cache-control') || '';
+        
+        if (any { lc $_ eq 'no-cache' } @resp_directives) {
+            carp "NO REUSE: 'no-cache' appears in response cache directives\n"
+                if $DEBUG;
+            return $REUSE_REVALIDATE
+        }
+    };
+    
+    #                                               RFC 7234 Section 4 #6
+    #
+    # the stored response is either:
+    #
+    # - fresh (see Section 4.2), or
+    #
+    do {
+        if ($resp_stored->is_fresh(heuristic_expiry => undef)) {
+            carp "DO REUSE: Response is fresh\n"
+                if $DEBUG;
+            return $REUSE_IS_OK
+        }
+    };
+    #
+    # TODO: heuristic_expiry => undef should be a option, not hardcoded
+    
+    # - allowed to be served stale (see Section 4.2.4), or
+    #
+    do {
+        # generate an array with cache-control directives
+        my @resp_directives =
+            map { my $str = $_; $str =~ s/^\s+//; $str =~ s/\s+$//; $str }
+            split ',', scalar $resp_stored->header('cache-control') || '';
+        
+        #                                           RFC 7234 Section 5.2.2.1
+        #
+        # must-revalidate
+        #
+        if (any { lc $_ eq 'must-revalidate' } @resp_directives) {
+            carp "NO REUSE: Stale but 'must-revalidate'\n"
+                if $DEBUG;
+            return $REUSE_IS_STALE_REVALIDATE
+        }
+        
+        #                                           RFC 7234 Section 5.2.2.7
+        #
+        # proxy-revalidate
+        #
+        if (
+            any { lc $_ eq 'proxy-revalidate' } @resp_directives
+            and
+            $self->is_shared
+        ) {
+            carp "NO REUSE: Stale but 'proxy-revalidate'\n"
+                if $DEBUG;
+            return $REUSE_IS_STALE_REVALIDATE
+        }
+        
+        
+        #                                           RFC 7234 Section 5.2.1.2
+        #
+        # max-stale = ...
+        #
+        my @rqst_directives =
+            map { my $str = $_; $str =~ s/^\s+//; $str =~ s/\s+$//; $str }
+            split ',', scalar $rqst_presented->header('cache-control') || '';
+        
+        my ($directive) =
+            grep { $_ =~ /^max-stale\s*=?\s*\d*$/ } @rqst_directives;
+        
+        if ($directive) {
+            my ($max_stale) = $directive =~ /:(\d+)$/;
+            unless ($max_stale) {
+                carp "DO REUSE: 'max-stale' for unlimited time\n"
+                    if $DEBUG;
+                return $REUSE_IS_STALE_OK
+            }
+            my $freshness = # not fresh!!! so, this is a negative number
+                $resp_stored->freshness_lifetime(heuristic_expiry => undef);
+            if ( abs($freshness) < $max_stale ) {
+                carp "DO REUSE: 'max-stale' not exceeded\n"
+                    if $DEBUG;
+                return $REUSE_IS_STALE_OK
+            }
+        }
+        
+    };
+    
+    # - successfully validated (see Section 4.3).
+    #
+    do {
+        carp "NO REUSE: must successfully validated"
+            if $DEBUG;
+        return $REUSE_IS_STALE_REVALIDATE
+    };
+    
 }
 
 # HTTP::Status::is_cacheable_by_default
