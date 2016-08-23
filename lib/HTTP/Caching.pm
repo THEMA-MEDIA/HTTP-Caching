@@ -389,8 +389,8 @@ sub _retrieve {
     foreach my $meta_key (keys %$meta_dict) {
         if ( my $status = $self->_may_reuse_from_cache(
             $rqst,
-            $meta_dict->{$meta_key}{rqst_stripped},
-            $meta_dict->{$meta_key}{resp_stripped}
+            $meta_dict->{$meta_key}{resp_stripped},
+            $meta_dict->{$meta_key}{rqst_stripped}
         ) ) {
             $meta_dict->{$meta_key}{status} = $status
         } else {
@@ -741,7 +741,7 @@ sub _may_reuse_from_cache {
             split ',', scalar $rqst_presented->header('cache-control') || '';
         
         if (any { lc $_ eq 'no-cache' } @rqst_directives) {
-            carp "NO CACHE: 'no-cache' appears in request cache directives\n"
+            carp "NO REUSE: 'no-cache' appears in request cache directives\n"
                 if $DEBUG;
             return 2 # must revalidate
         }
@@ -751,7 +751,7 @@ sub _may_reuse_from_cache {
             and
             scalar $rqst_presented->header('Pragma') =~ /no-cache/
         ) {
-            carp "NO CACHE: Pragma: 'no-cache' appears in request\n"
+            carp "NO REUSE: Pragma: 'no-cache' appears in request\n"
                 if $DEBUG;
             return 2 # must revalidate
         }
@@ -771,7 +771,7 @@ sub _may_reuse_from_cache {
             split ',', scalar $resp_stored->header('cache-control') || '';
         
         if (any { lc $_ eq 'no-cache' } @resp_directives) {
-            carp "NO CACHE: 'no-cache' appears in response cache directives\n"
+            carp "NO REUSE: 'no-cache' appears in response cache directives\n"
                 if $DEBUG;
             return 2 # must revalidate
         }
@@ -785,7 +785,7 @@ sub _may_reuse_from_cache {
     #
     do {
         if ($resp_stored->is_fresh(heuristic_expiry => undef)) {
-            carp "DO CACHE: Response is fresh\n"
+            carp "DO REUSE: Response is fresh\n"
                 if $DEBUG;
             return 1
         }
@@ -795,12 +795,74 @@ sub _may_reuse_from_cache {
     
     # - allowed to be served stale (see Section 4.2.4), or
     #
-    
+    do {
+        # generate an array with cache-control directives
+        my @resp_directives =
+            map { my $str = $_; $str =~ s/^\s+//; $str =~ s/\s+$//; $str }
+            split ',', scalar $resp_stored->header('cache-control') || '';
+        
+        #                                           RFC 7234 Section 5.2.2.1
+        #
+        # must-revalidate
+        #
+        if (any { lc $_ eq 'must-revalidate' } @resp_directives) {
+            carp "NO REUSE: Stale but 'must-revalidate'\n"
+                if $DEBUG;
+            return 2 # must revalidate
+        }
+        
+        #                                           RFC 7234 Section 5.2.2.7
+        #
+        # proxy-revalidate
+        #
+        if (
+            any { lc $_ eq 'proxy-revalidate' } @resp_directives
+            and
+            $self->is_shared
+        ) {
+            carp "NO REUSE: Stale but 'proxy-revalidate'\n"
+                if $DEBUG;
+            return 2 # must revalidate
+        }
+        
+        
+        #                                           RFC 7234 Section 5.2.1.2
+        #
+        # max-stale = ...
+        #
+        my @rqst_directives =
+            map { my $str = $_; $str =~ s/^\s+//; $str =~ s/\s+$//; $str }
+            split ',', scalar $rqst_presented->header('cache-control') || '';
+        
+        my ($directive) =
+            grep { $_ =~ /^max-stale\s*=?\s*\d*$/ } @rqst_directives;
+        
+        if ($directive) {
+            my ($max_stale) = $directive =~ /:(\d+)$/;
+            unless ($max_stale) {
+                carp "DO REUSE: 'max-stale' for unlimited time\n"
+                    if $DEBUG;
+                return 1
+            }
+            my $freshness = # not fresh!!! so, this is a negative number
+                $resp_stored->freshness_lifetime(heuristic_expiry => undef);
+            if ( abs($freshness) < $max_stale ) {
+                carp "DO REUSE: 'max-stale' not exceeded\n"
+                    if $DEBUG;
+                return 1
+            }
+        }
+        
+    };
     
     # - successfully validated (see Section 4.3).
     #
-
-    return undef;
+    do {
+        carp "NO REUSE: must successfully validated"
+            if $DEBUG;
+        return 3
+    };
+    
 }
 
 # HTTP::Status::is_cacheable_by_default

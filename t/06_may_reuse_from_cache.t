@@ -44,9 +44,9 @@ subtest "matching URI's" => sub {
             $rqst_associated
         )
     }
-        { carped => "" },
+        { carped => qr/NO REUSE: must successfully validated/ },
         "URI's are identical";
-    ok ( ( not defined $test ),
+    ok ( ( defined $test and $test == 3 ),
         "... and falls through" );
     
     my $rqst_normalized = $rqst_minimal->clone;
@@ -59,9 +59,9 @@ subtest "matching URI's" => sub {
             $rqst_associated
         )
     }
-        { carped => "" },
+        { carped => qr/NO REUSE: must successfully validated/ },
         "URI's do match";
-    ok ( ( not defined $test ),
+    ok ( ( defined $test and $test == 3 ),
         "... and falls through" );
     
     
@@ -107,9 +107,9 @@ subtest "matching Request Methods" => sub {
             $rqst_associated
         )
     }
-        { carped => "" },
+        { carped => qr/NO REUSE: must successfully validated/ },
         "Methods are identical";
-    ok ( ( not defined $test ),
+    ok ( ( defined $test and $test == 3 ),
         "... and falls through" );
     
     my $rqst_normalized = $rqst_minimal->clone;
@@ -165,9 +165,9 @@ subtest "matching Nominated Headers in 'Vary'" => sub {
             $rqst_minimal
         )
     }
-        { carped => "" },
+        { carped => qr/NO REUSE: must successfully validated/ },
         "No 'Vary'";
-    ok ( ( not defined $test ),
+    ok ( ( defined $test and $test == 3 ),
         "... and falls through" );
     
     my $resp_vary = $resp_minimal->clone;
@@ -180,9 +180,9 @@ subtest "matching Nominated Headers in 'Vary'" => sub {
             $rqst_minimal,
         )
     }
-        { carped => "" },
+        { carped => qr/NO REUSE: must successfully validated/ },
         "'Nominated Headers are not present in either request";
-    ok ( ( not defined $test ),
+    ok ( ( defined $test and $test == 3 ),
         "... and falls through" );
     
     
@@ -224,9 +224,9 @@ subtest "matching Nominated Headers in 'Vary'" => sub {
             $rqst_foo_bar
         )
     }
-        { carped => "" },
+        { carped => qr/NO REUSE: must successfully validated/ },
         "Nominated Headers are the same";
-    ok ( ( not defined $test ),
+    ok ( ( defined $test and $test == 3 ),
         "... and falls through" );
     
     my $resp_star = $resp_minimal->clone;
@@ -270,8 +270,8 @@ subtest "matching no-cache request" => sub {
             $rqst_minimal
         )
     }
-        { carped => qr/NO CACHE: 'no-cache' appears in request/ },
-        "NO CACHE: 'no-cache' appears in request cache directives";
+        { carped => qr/NO REUSE: 'no-cache' appears in request/ },
+        "NO REUSE: 'no-cache' appears in request cache directives";
     ok ( (defined $test and $test == 2),
         "... and returns 2" );
     
@@ -285,8 +285,8 @@ subtest "matching no-cache request" => sub {
             $rqst_minimal
         )
     }
-        { carped => qr/NO CACHE: Pragma: 'no-cache' appears in request/ },
-        "NO CACHE: Pragma: 'no-cache' appears in request";
+        { carped => qr/NO REUSE: Pragma: 'no-cache' appears in request/ },
+        "NO REUSE: Pragma: 'no-cache' appears in request";
     ok ( (defined $test and $test == 2),
         "... and returns 2" );
     
@@ -316,8 +316,8 @@ subtest "matching no-cache response" => sub {
             $rqst_minimal
         )
     }
-        { carped => qr/NO CACHE: 'no-cache' appears in response/ },
-        "NO CACHE: 'no-cache' appears in response cache directives";
+        { carped => qr/NO REUSE: 'no-cache' appears in response/ },
+        "NO REUSE: 'no-cache' appears in response cache directives";
     ok ( (defined $test and $test == 2),
         "... and returns 2" );
     
@@ -347,8 +347,8 @@ subtest "is fresh" => sub {
             $rqst_minimal
         )
     }
-        { carped => qr/DO CACHE: Response is fresh/ },
-        "DO CACHE: Response is fresh: max-age=1";
+        { carped => qr/DO REUSE: Response is fresh/ },
+        "DO REUSE: Response is fresh: max-age=1";
     ok ( (defined $test and $test == 1),
         "... and returns 1" );
     
@@ -363,8 +363,8 @@ subtest "is fresh" => sub {
             $rqst_minimal
         )
     }
-        { carped => qr/DO CACHE: Response is fresh/ },
-        "DO CACHE: Response is fresh: Expires end of the century";
+        { carped => qr/DO REUSE: Response is fresh/ },
+        "DO REUSE: Response is fresh: Expires end of the century";
     ok ( (defined $test and $test == 1),
         "... and returns 1" );
     
@@ -381,9 +381,9 @@ subtest "is fresh" => sub {
             $rqst_minimal
         )
     }
-        { carped => "" },
-        "NO CACHE: Response is fresh: Expires loooooong ago";
-    ok ( ( not defined $test ),
+        { carped => qr/NO REUSE: must successfully validated/ },
+        "NO REUSE: Response is fresh: Expires loooooong ago";
+    ok ( ( defined $test and $test == 3 ),
         "... and falls through" );
     
 };
