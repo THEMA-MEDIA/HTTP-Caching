@@ -33,7 +33,12 @@ $expected_resp->content('Who is there?');
 
 # populate the cache, we could try mocking CHI, but I'm to lazy for that
 $cache{$CONTENT_KEY} = $expected_resp;
-$cache{$URI_MD5} = { $CONTENT_KEY => undef };
+$cache{$URI_MD5} = {
+    $CONTENT_KEY => {
+        resp_stripped => $expected_resp,
+        rqst_stripped => $rqst_normal,
+    }
+};
 
 my $http_caching = HTTP::Caching->new(
     cache                   => $mocked_cache,
