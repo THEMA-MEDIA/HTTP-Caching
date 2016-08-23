@@ -395,21 +395,20 @@ sub _retrieve {
     
     return unless $meta_dict;
     
-    foreach my $meta_key (keys %$meta_dict) {
-        if ( my $status = $self->_may_reuse_from_cache(
+    my @meta_keys = keys %$meta_dict;
+    
+    foreach my $meta_key (@meta_keys) {
+        my $reuse_status = $self->_may_reuse_from_cache(
             $rqst,
             $meta_dict->{$meta_key}{resp_stripped},
             $meta_dict->{$meta_key}{rqst_stripped}
-        ) ) {
-            $meta_dict->{$meta_key}{status} = $status
-        } else {
-            delete $meta_dict->{$meta_key}
-        }
+        );
+        $meta_dict->{$meta_key}{reuse_status} = $reuse_status
     }
     
-    # XXX pick one randomly from the list of keys
-    my ($resp_key) = keys %$meta_dict;
-    
+    my @okay_keys =
+        grep { $meta_dict->{$_}{reuse_status} & $REUSE_IS_OK} @meta_keys;
+    my ($resp_key) = @okay_keys;
     my $resp = $self->_retrieve_response($resp_key);
     return $resp;
 }
