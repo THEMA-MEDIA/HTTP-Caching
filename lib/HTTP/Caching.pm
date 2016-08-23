@@ -28,6 +28,15 @@ use MooX::Types::MooseLike::Base ':all';
 
 our $DEBUG = 0;
 
+use Readonly;
+
+Readonly my $REUSE_NO_MATCH             => 0; # mismatch of headers etc
+Readonly my $REUSE_IS_OK                => 1;
+Readonly my $REUSE_IS_STALE             => 2;
+Readonly my $REUSE_REVALIDATE           => 4;
+Readonly my $REUSE_IS_STALE_OK          => $REUSE_IS_STALE | $REUSE_IS_OK;
+Readonly my $REUSE_IS_STALE_REVALIDATE  => $REUSE_IS_STALE | $REUSE_REVALIDATE;
+
 =head1 SYNOPSIS
 
     my $chi_cache = CHI->new(
@@ -670,7 +679,7 @@ sub _may_reuse_from_cache {
         unless ( URI::eq($rqst_presented->uri, $rqst_associated->uri) ) {
             carp "NO REUSE: URI's do not match\n"
                 if $DEBUG;
-            return 0
+            return $REUSE_NO_MATCH
         }
     };
     
@@ -684,7 +693,7 @@ sub _may_reuse_from_cache {
         unless ( $rqst_presented->method eq $rqst_associated->method ) {
             carp "NO REUSE: Methods do not match\n"
                 if $DEBUG;
-            return 0
+            return $REUSE_NO_MATCH
         }
     };
     #
@@ -703,7 +712,7 @@ sub _may_reuse_from_cache {
         if ( scalar $resp_stored->header('Vary') eq '*' ) {
             carp "NO REUSE: 'Vary' equals '*'\n"
                 if $DEBUG;
-            return 0
+            return $REUSE_NO_MATCH
         }
         
         #create an array with nominated headers
@@ -717,7 +726,7 @@ sub _may_reuse_from_cache {
             unless ( $header_presented eq $header_associated ) {
                 carp "NO REUSE: Nominated headers in 'Vary' do not match\n"
                     if $DEBUG;
-                return 0
+                return $REUSE_NO_MATCH
             }
         }
     };
@@ -743,7 +752,7 @@ sub _may_reuse_from_cache {
         if (any { lc $_ eq 'no-cache' } @rqst_directives) {
             carp "NO REUSE: 'no-cache' appears in request cache directives\n"
                 if $DEBUG;
-            return 2 # must revalidate
+            return $REUSE_REVALIDATE
         }
         
         if (
@@ -753,7 +762,7 @@ sub _may_reuse_from_cache {
         ) {
             carp "NO REUSE: Pragma: 'no-cache' appears in request\n"
                 if $DEBUG;
-            return 2 # must revalidate
+            return $REUSE_REVALIDATE
         }
     };
     
@@ -773,7 +782,7 @@ sub _may_reuse_from_cache {
         if (any { lc $_ eq 'no-cache' } @resp_directives) {
             carp "NO REUSE: 'no-cache' appears in response cache directives\n"
                 if $DEBUG;
-            return 2 # must revalidate
+            return $REUSE_REVALIDATE
         }
     };
     
@@ -787,7 +796,7 @@ sub _may_reuse_from_cache {
         if ($resp_stored->is_fresh(heuristic_expiry => undef)) {
             carp "DO REUSE: Response is fresh\n"
                 if $DEBUG;
-            return 1
+            return $REUSE_IS_OK
         }
     };
     #
@@ -808,7 +817,7 @@ sub _may_reuse_from_cache {
         if (any { lc $_ eq 'must-revalidate' } @resp_directives) {
             carp "NO REUSE: Stale but 'must-revalidate'\n"
                 if $DEBUG;
-            return 2 # must revalidate
+            return $REUSE_IS_STALE_REVALIDATE
         }
         
         #                                           RFC 7234 Section 5.2.2.7
@@ -822,7 +831,7 @@ sub _may_reuse_from_cache {
         ) {
             carp "NO REUSE: Stale but 'proxy-revalidate'\n"
                 if $DEBUG;
-            return 2 # must revalidate
+            return $REUSE_IS_STALE_REVALIDATE
         }
         
         
@@ -842,14 +851,14 @@ sub _may_reuse_from_cache {
             unless ($max_stale) {
                 carp "DO REUSE: 'max-stale' for unlimited time\n"
                     if $DEBUG;
-                return 1
+                return $REUSE_IS_STALE_OK
             }
             my $freshness = # not fresh!!! so, this is a negative number
                 $resp_stored->freshness_lifetime(heuristic_expiry => undef);
             if ( abs($freshness) < $max_stale ) {
                 carp "DO REUSE: 'max-stale' not exceeded\n"
                     if $DEBUG;
-                return 1
+                return $REUSE_IS_STALE_OK
             }
         }
         
@@ -860,7 +869,7 @@ sub _may_reuse_from_cache {
     do {
         carp "NO REUSE: must successfully validated"
             if $DEBUG;
-        return 3
+        return $REUSE_IS_STALE_REVALIDATE
     };
     
 }

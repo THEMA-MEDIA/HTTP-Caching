@@ -8,6 +8,15 @@ use HTTP::Method;
 use HTTP::Request;
 use HTTP::Response;
 
+use Readonly;
+
+Readonly my $REUSE_NO_MATCH             => 0; # mismatch of headers etc
+Readonly my $REUSE_IS_OK                => 1;
+Readonly my $REUSE_IS_STALE             => 2;
+Readonly my $REUSE_REVALIDATE           => 4;
+Readonly my $REUSE_IS_STALE_OK          => $REUSE_IS_STALE | $REUSE_IS_OK;
+Readonly my $REUSE_IS_STALE_REVALIDATE  => $REUSE_IS_STALE | $REUSE_REVALIDATE;
+
 # minimal HTTP::Messages
 # - Request: HEAD
 #   Method is understood,
@@ -46,7 +55,7 @@ subtest "matching URI's" => sub {
     }
         { carped => qr/NO REUSE: must successfully validated/ },
         "URI's are identical";
-    ok ( ( defined $test and $test == 3 ),
+    ok ( ( defined $test and $test == $REUSE_IS_STALE_REVALIDATE ),
         "... and falls through" );
     
     my $rqst_normalized = $rqst_minimal->clone;
@@ -61,7 +70,7 @@ subtest "matching URI's" => sub {
     }
         { carped => qr/NO REUSE: must successfully validated/ },
         "URI's do match";
-    ok ( ( defined $test and $test == 3 ),
+    ok ( ( defined $test and $test == $REUSE_IS_STALE_REVALIDATE ),
         "... and falls through" );
     
     
@@ -77,8 +86,8 @@ subtest "matching URI's" => sub {
     }
         { carped => qr/NO REUSE: URI's do not match/ },
         "NO REUSE: URI's do not match";
-    ok ( (defined $test and $test == 0),
-        "... and returns 0" );
+    ok ( (defined $test and $test == $REUSE_NO_MATCH),
+        "... and returns REUSE_NO_MATCH" );
     
 };
 
@@ -109,7 +118,7 @@ subtest "matching Request Methods" => sub {
     }
         { carped => qr/NO REUSE: must successfully validated/ },
         "Methods are identical";
-    ok ( ( defined $test and $test == 3 ),
+    ok ( ( defined $test and $test == $REUSE_IS_STALE_REVALIDATE ),
         "... and falls through" );
     
     my $rqst_normalized = $rqst_minimal->clone;
@@ -124,8 +133,8 @@ subtest "matching Request Methods" => sub {
     }
         { carped => qr/NO REUSE: Methods do not match/ },
         "NO REUSE: Methods are case-sensitive";
-    ok ( (defined $test and $test == 0),
-        "... and returns 0" );
+    ok ( (defined $test and $test == $REUSE_NO_MATCH),
+        "... and returns REUSE_NO_MATCH" );
     
     
     my $rqst_different = $rqst_minimal->clone;
@@ -140,8 +149,8 @@ subtest "matching Request Methods" => sub {
     }
         { carped => qr/NO REUSE: Methods do not match/ },
         "NO REUSE: Methods do not match";
-    ok ( (defined $test and $test == 0),
-        "... and returns 0" );
+    ok ( (defined $test and $test == $REUSE_NO_MATCH),
+        "... and returns REUSE_NO_MATCH" );
     
 };
 
@@ -167,7 +176,7 @@ subtest "matching Nominated Headers in 'Vary'" => sub {
     }
         { carped => qr/NO REUSE: must successfully validated/ },
         "No 'Vary'";
-    ok ( ( defined $test and $test == 3 ),
+    ok ( ( defined $test and $test == $REUSE_IS_STALE_REVALIDATE ),
         "... and falls through" );
     
     my $resp_vary = $resp_minimal->clone;
@@ -182,7 +191,7 @@ subtest "matching Nominated Headers in 'Vary'" => sub {
     }
         { carped => qr/NO REUSE: must successfully validated/ },
         "'Nominated Headers are not present in either request";
-    ok ( ( defined $test and $test == 3 ),
+    ok ( ( defined $test and $test == $REUSE_IS_STALE_REVALIDATE ),
         "... and falls through" );
     
     
@@ -198,8 +207,8 @@ subtest "matching Nominated Headers in 'Vary'" => sub {
     }
         { carped => qr/NO REUSE: Nominated headers in 'Vary' do not match/ },
         "NO REUSE: Nominated Headers are not both in each request";
-    ok ( (defined $test and $test == 0),
-        "... and returns 0" );
+    ok ( (defined $test and $test == $REUSE_NO_MATCH),
+        "... and returns REUSE_NO_MATCH" );
     
     
     my $rqst_foo_baz = $rqst_minimal->clone;
@@ -214,9 +223,9 @@ subtest "matching Nominated Headers in 'Vary'" => sub {
     }
         { carped => qr/NO REUSE: Nominated headers in 'Vary' do not match/ },
         "NO REUSE: Nominated Headers do not have the same value";
-    ok ( (defined $test and $test == 0),
-        "... and returns 0" );
-    
+    ok ( (defined $test and $test == $REUSE_NO_MATCH),
+        "... and returns REUSE_NO_MATCH" );
+   
     warning_like {
         $test = $none_caching->_may_reuse_from_cache(
             $rqst_foo_bar,
@@ -226,7 +235,7 @@ subtest "matching Nominated Headers in 'Vary'" => sub {
     }
         { carped => qr/NO REUSE: must successfully validated/ },
         "Nominated Headers are the same";
-    ok ( ( defined $test and $test == 3 ),
+    ok ( ( defined $test and $test == $REUSE_IS_STALE_REVALIDATE ),
         "... and falls through" );
     
     my $resp_star = $resp_minimal->clone;
@@ -241,8 +250,8 @@ subtest "matching Nominated Headers in 'Vary'" => sub {
     }
         { carped => qr/NO REUSE: 'Vary' equals '*'/ },
         "NO REUSE: 'Vary' equals '*'";
-    ok ( (defined $test and $test == 0),
-        "... and returns 0" );
+    ok ( (defined $test and $test == $REUSE_NO_MATCH),
+        "... and returns REUSE_NO_MATCH" );
     
 };
 
@@ -272,8 +281,8 @@ subtest "matching no-cache request" => sub {
     }
         { carped => qr/NO REUSE: 'no-cache' appears in request/ },
         "NO REUSE: 'no-cache' appears in request cache directives";
-    ok ( (defined $test and $test == 2),
-        "... and returns 2" );
+    ok ( (defined $test and $test == $REUSE_REVALIDATE),
+        "... and returns REUSE_REVALIDATE" );
     
     my $rqst_pragma = $rqst_minimal->clone;
     $rqst_pragma->header('Pragma' => 'no-cache');
@@ -287,8 +296,8 @@ subtest "matching no-cache request" => sub {
     }
         { carped => qr/NO REUSE: Pragma: 'no-cache' appears in request/ },
         "NO REUSE: Pragma: 'no-cache' appears in request";
-    ok ( (defined $test and $test == 2),
-        "... and returns 2" );
+    ok ( (defined $test and $test == $REUSE_REVALIDATE),
+        "... and returns REUSE_REVALIDATE" );
     
 };
 
@@ -318,8 +327,8 @@ subtest "matching no-cache response" => sub {
     }
         { carped => qr/NO REUSE: 'no-cache' appears in response/ },
         "NO REUSE: 'no-cache' appears in response cache directives";
-    ok ( (defined $test and $test == 2),
-        "... and returns 2" );
+    ok ( (defined $test and $test == $REUSE_REVALIDATE),
+        "... and returns REUSE_REVALIDATE" );
     
 };
 
@@ -349,8 +358,8 @@ subtest "is fresh" => sub {
     }
         { carped => qr/DO REUSE: Response is fresh/ },
         "DO REUSE: Response is fresh: max-age=1";
-    ok ( (defined $test and $test == 1),
-        "... and returns 1" );
+    ok ( (defined $test and $test == $REUSE_IS_OK),
+        "... and returns REUSE_IS_OK" );
     
     
     my $resp_expires = $resp_minimal->clone;
@@ -365,8 +374,8 @@ subtest "is fresh" => sub {
     }
         { carped => qr/DO REUSE: Response is fresh/ },
         "DO REUSE: Response is fresh: Expires end of the century";
-    ok ( (defined $test and $test == 1),
-        "... and returns 1" );
+    ok ( (defined $test and $test == $REUSE_IS_OK),
+        "... and returns REUSE_IS_OK" );
     
     
     my $resp_not_fresh = $resp_minimal->clone;
@@ -383,7 +392,7 @@ subtest "is fresh" => sub {
     }
         { carped => qr/NO REUSE: must successfully validated/ },
         "NO REUSE: Response is fresh: Expires loooooong ago";
-    ok ( ( defined $test and $test == 3 ),
+    ok ( ( defined $test and $test == $REUSE_IS_STALE_REVALIDATE ),
         "... and falls through" );
     
 };
