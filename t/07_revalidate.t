@@ -1,9 +1,9 @@
-use Test::Most tests => 1;
+use Test::Most tests => 2;
 use Test::MockObject;
 
 use HTTP::Caching;
 
-$HTTP::Caching::DEBUG = 1; # so we get nice helpful messages back
+$HTTP::Caching::DEBUG = 0; # so we get nice helpful messages back
 
 use HTTP::Method;
 use HTTP::Request;
@@ -99,3 +99,56 @@ subtest 'Revalidate: use provided validators' => sub {
         '... and returns the response from cache');
    
 };
+
+
+subtest 'Revalidate: use provided validators' => sub {
+    
+    plan tests => 1;
+    
+    my $test;
+    
+    my $forwarded_resp;
+    my $forwarded_rqst;
+    my $resp;
+    
+    my $http_caching = HTTP::Caching->new(
+        cache                   => $mocked_cache,
+        cache_type              => 'private',
+        forwarder               => sub {
+            $forwarded_rqst = shift;
+            return $forwarded_resp
+        }
+    );
+    
+    # First make a request that will get a response to fill the cache
+    # using a etag
+    #
+    
+    my $rqst_both = $rqst_minimal->clone;
+    $rqst_both->uri('http://localhost/both');
+    
+    my $resp_both = $resp_minimal->clone;
+    $resp_both->header(etag => '7a0629e5-373e-47a1-ba5a-c2da08053bcf');
+    $resp_both->header(last_modified => 'Thu, 01 Jan 1970 01:01:00');
+    $resp_both->content('Hello... Both');
+    
+    $forwarded_resp = $resp_both;
+    
+    # This will set $forwarded_rqst
+    $http_caching->make_request($rqst_both);
+    
+    
+    
+    my $resp_full = $resp_minimal->clone;
+    $resp_full->content('Hello... Full');
+    
+    $forwarded_resp = $resp_full;
+    
+    # Unset it and make the request again
+    $forwarded_rqst = undef;
+    $resp = $http_caching->make_request($rqst_both);
+    
+    is($resp->content, 'Hello... Full',
+        '... and returns the full response while validating');
+    
+}

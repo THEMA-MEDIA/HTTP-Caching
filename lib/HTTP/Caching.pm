@@ -388,10 +388,10 @@ sub _insert_meta_dict {
 }
 
 sub _retrieve {
-    my $self        = shift;
-    my $rqst        = shift;
+    my $self            = shift;
+    my $rqst_presented  = shift;
     
-    my $rqst_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
+    my $rqst_key = Digest::MD5::md5_hex($rqst_presented->uri()->as_string);
     my $meta_dict = $self->_retrieve_meta_dict($rqst_key);
     
     return unless $meta_dict;
@@ -400,7 +400,7 @@ sub _retrieve {
     
     foreach my $meta_key (@meta_keys) {
         my $reuse_status = $self->_may_reuse_from_cache(
-            $rqst,
+            $rqst_presented,
             $meta_dict->{$meta_key}{resp_stripped},
             $meta_dict->{$meta_key}{rqst_stripped}
         );
@@ -438,11 +438,11 @@ sub _retrieve {
         my $etag = $resp_stripped->header('ETag');
         my $last = $resp_stripped->header('Last-Modified');
         
-        my $rqst_validate = $rqst->clone;
-        $rqst_validate->header('If-None-Match' => $etag) if $etag;
-        $rqst_validate->header('If-Modified-Since' => $last) if $last;
+        my $rqst_forwarded = $rqst_presented->clone;
+        $rqst_forwarded->header('If-None-Match' => $etag) if $etag;
+        $rqst_forwarded->header('If-Modified-Since' => $last) if $last;
         
-        my $resp_validate = $self->_forward($rqst_validate);
+        my $resp_forwarded = $self->_forward($rqst_forwarded);
         
         #                                           RFC 7234 Section 4.3.3.
         #
@@ -451,9 +451,11 @@ sub _retrieve {
         # Cache handling of a response to a conditional request is dependent
         # upon its status code:
         
+        
         # A 304 (Not Modified) response status code indicates that the
         # stored response can be updated and reused; see Section 4.3.4.
-        if ($resp_validate->code == HTTP_NOT_MODIFIED) {
+        #
+        if ($resp_forwarded->code == HTTP_NOT_MODIFIED) {
             my $resp = $self->_retrieve_response($resp_key);
             return $resp
             #
@@ -462,10 +464,17 @@ sub _retrieve {
             # TODO: ade 'Age' header
         }
         
+        
         # A full response (i.e., one with a payload body) indicates that
         # none of the stored responses nominated in the conditional request
         # is suitable.  Instead, the cache MUST use the full response to
         # satisfy the request and MAY replace the stored response(s).
+        #
+        if ( not HTTP::Status::is_server_error($resp_forwarded->code) ) {
+            $self->_store($rqst_presented, $resp_forwarded);
+            return $resp_forwarded;
+        }
+        
         
         # However, if a cache receives a 5xx (Server Error) response while
         # attempting to validate a response, it can either forward this
@@ -473,7 +482,7 @@ sub _retrieve {
         # to respond.  In the latter case, the cache MAY send a previously
         # stored response (see Section 4.2.4).
         
-        return $resp_validate;
+        return undef;
     }
     
     return undef;
