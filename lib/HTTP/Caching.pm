@@ -481,6 +481,13 @@ sub _retrieve {
         # response to the requesting client, or act as if the server failed
         # to respond.  In the latter case, the cache MAY send a previously
         # stored response (see Section 4.2.4).
+        #
+        if ( HTTP::Status::is_server_error($resp_forwarded->code) ) {
+            return $resp_forwarded;
+        }
+        #
+        # TODO: check if we can use a cached stale version
+        
         
         return undef;
     }
