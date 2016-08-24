@@ -17,6 +17,7 @@ Readonly my $CONTENT_KEY    => '3e5f1b953da8430c6f88b90ac15d78fa'; # or whatever
 
 my $rqst_minimal = HTTP::Request->new('HEAD');
 my $resp_minimal = HTTP::Response->new(100);
+$resp_minimal->header(cache_control => 'max-age=10');
 
 # mock cache
 my %cache;
@@ -30,6 +31,7 @@ $rqst_normal->content('knock knock ...');
 
 my $expected_resp = HTTP::Response->new(501);
 $expected_resp->content('Who is there?');
+$expected_resp->header(cache_control => 'max-age=10');
 
 # populate the cache, we could try mocking CHI, but I'm to lazy for that
 $cache{$CONTENT_KEY} = $expected_resp;

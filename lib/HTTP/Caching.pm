@@ -6,11 +6,11 @@ HTTP::Caching - The RFC 7234 compliant brains to do caching right
 
 =head1 VERSION
 
-Version 0.02 Alpha 05
+Version 0.03
 
 =cut
 
-our $VERSION = '0.02_05';
+our $VERSION = '0.03';
 
 use strict;
 use warnings;
@@ -18,6 +18,7 @@ use warnings;
 use Carp;
 use Digest::MD5;
 use HTTP::Method;
+use HTTP::Status ':constants';
 use List::MoreUtils qw{ any };
 use Monkey::Patch::Action;
 use Time::HiRes;
@@ -387,31 +388,111 @@ sub _insert_meta_dict {
 }
 
 sub _retrieve {
-    my $self        = shift;
-    my $rqst        = shift;
+    my $self            = shift;
+    my $rqst_presented  = shift;
     
-    my $rqst_key = Digest::MD5::md5_hex($rqst->uri()->as_string);
+    my $rqst_key = Digest::MD5::md5_hex($rqst_presented->uri()->as_string);
     my $meta_dict = $self->_retrieve_meta_dict($rqst_key);
     
     return unless $meta_dict;
     
-    foreach my $meta_key (keys %$meta_dict) {
-        if ( my $status = $self->_may_reuse_from_cache(
-            $rqst,
+    my @meta_keys = keys %$meta_dict;
+    
+    foreach my $meta_key (@meta_keys) {
+        my $reuse_status = $self->_may_reuse_from_cache(
+            $rqst_presented,
             $meta_dict->{$meta_key}{resp_stripped},
             $meta_dict->{$meta_key}{rqst_stripped}
-        ) ) {
-            $meta_dict->{$meta_key}{status} = $status
-        } else {
-            delete $meta_dict->{$meta_key}
-        }
+        );
+        $meta_dict->{$meta_key}{reuse_status} = $reuse_status
     }
     
-    # XXX pick one randomly from the list of keys
-    my ($resp_key) = keys %$meta_dict;
+    my @okay_keys =
+        grep { $meta_dict->{$_}{reuse_status} & $REUSE_IS_OK} @meta_keys;
     
-    my $resp = $self->_retrieve_response($resp_key);
-    return $resp;
+    if (scalar @okay_keys) {
+        #
+        # TODO: do content negotiation if possible
+        #
+        # TODO: Sort to select lates response
+        #
+        my ($resp_key) = @okay_keys;
+        my $resp = $self->_retrieve_response($resp_key);
+        return $resp
+    }
+    
+    my @vldt_keys =
+        grep { $meta_dict->{$_}{reuse_status} & $REUSE_REVALIDATE} @meta_keys;
+    
+    if (scalar @vldt_keys) {
+        #
+        #                                           RFC 7234 Section 4.3.1
+        #
+        # Sending a Validation Request
+        #
+        my ($resp_key) = @vldt_keys;
+        my $resp_stripped = $meta_dict->{$resp_key}{resp_stripped};
+        
+        # Assume we have validation headers, otherwise we'll need a HEAD request
+        #
+        my $etag = $resp_stripped->header('ETag');
+        my $last = $resp_stripped->header('Last-Modified');
+        
+        my $rqst_forwarded = $rqst_presented->clone;
+        $rqst_forwarded->header('If-None-Match' => $etag) if $etag;
+        $rqst_forwarded->header('If-Modified-Since' => $last) if $last;
+        
+        my $resp_forwarded = $self->_forward($rqst_forwarded);
+        
+        #                                           RFC 7234 Section 4.3.3.
+        #
+        # Handling a Validation Response
+        #
+        # Cache handling of a response to a conditional request is dependent
+        # upon its status code:
+        
+        
+        # A 304 (Not Modified) response status code indicates that the
+        # stored response can be updated and reused; see Section 4.3.4.
+        #
+        if ($resp_forwarded->code == HTTP_NOT_MODIFIED) {
+            my $resp = $self->_retrieve_response($resp_key);
+            return $resp
+            #
+            # TODO: make it all compliant with Section 4.3.4 on how to select
+            #       which stored responses need update
+            # TODO: ade 'Age' header
+        }
+        
+        
+        # A full response (i.e., one with a payload body) indicates that
+        # none of the stored responses nominated in the conditional request
+        # is suitable.  Instead, the cache MUST use the full response to
+        # satisfy the request and MAY replace the stored response(s).
+        #
+        if ( not HTTP::Status::is_server_error($resp_forwarded->code) ) {
+            $self->_store($rqst_presented, $resp_forwarded);
+            return $resp_forwarded;
+        }
+        
+        
+        # However, if a cache receives a 5xx (Server Error) response while
+        # attempting to validate a response, it can either forward this
+        # response to the requesting client, or act as if the server failed
+        # to respond.  In the latter case, the cache MAY send a previously
+        # stored response (see Section 4.2.4).
+        #
+        if ( HTTP::Status::is_server_error($resp_forwarded->code) ) {
+            return $resp_forwarded;
+        }
+        #
+        # TODO: check if we can use a cached stale version
+        
+        
+        return undef;
+    }
+    
+    return undef;
 }
 
 sub _retrieve_meta_dict {
@@ -769,7 +850,7 @@ sub _may_reuse_from_cache {
     
     #                                               RFC 7234 Section 4 #5
     #
-    #the stored response does not contain the no-cache cache directive
+    # the stored response does not contain the no-cache cache directive
     # (Section 5.2.2.2), unless it is successfully validated
     # (Section 4.3)
     #
