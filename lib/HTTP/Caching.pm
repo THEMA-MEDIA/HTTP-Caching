@@ -18,6 +18,7 @@ use warnings;
 use Carp;
 use Digest::MD5;
 use HTTP::Method;
+use HTTP::Status ':constants';
 use List::MoreUtils qw{ any };
 use Monkey::Patch::Action;
 use Time::HiRes;
@@ -452,6 +453,14 @@ sub _retrieve {
         
         # A 304 (Not Modified) response status code indicates that the
         # stored response can be updated and reused; see Section 4.3.4.
+        if ($resp_validate->code == HTTP_NOT_MODIFIED) {
+            my $resp = $self->_retrieve_response($resp_key);
+            return $resp
+            #
+            # TODO: make it all compliant with Section 4.3.4 on how to select
+            #       which stored responses need update
+            # TODO: ade 'Age' header
+        }
         
         # A full response (i.e., one with a payload body) indicates that
         # none of the stored responses nominated in the conditional request
@@ -825,7 +834,7 @@ sub _may_reuse_from_cache {
     
     #                                               RFC 7234 Section 4 #5
     #
-    #the stored response does not contain the no-cache cache directive
+    # the stored response does not contain the no-cache cache directive
     # (Section 5.2.2.2), unless it is successfully validated
     # (Section 4.3)
     #

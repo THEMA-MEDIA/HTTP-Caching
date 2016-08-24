@@ -29,12 +29,13 @@ $mocked_cache->mock( get => sub { return $cache{$_[1]} } );
 
 subtest 'Revalidate: use provided validators' => sub {
     
-    plan tests => 2;
+    plan tests => 4;
     
     my $test;
     
     my $forwarded_resp;
     my $forwarded_rqst;
+    my $resp;
     
     my $http_caching = HTTP::Caching->new(
         cache                   => $mocked_cache,
@@ -54,6 +55,7 @@ subtest 'Revalidate: use provided validators' => sub {
     
     my $resp_etag = $resp_minimal->clone;
     $resp_etag->header(etag => '7a0629e5-373e-47a1-ba5a-c2da08053bcf');
+    $resp_etag->content('Hello... ETag');
     
     $forwarded_resp = $resp_etag;
     
@@ -62,12 +64,13 @@ subtest 'Revalidate: use provided validators' => sub {
     
     # Unset it and make the request again
     $forwarded_rqst = undef;
-    $http_caching->make_request($rqst_etag);
+    $resp = $http_caching->make_request($rqst_etag);
     
     is($forwarded_rqst->header('If-None-Match'),
         '7a0629e5-373e-47a1-ba5a-c2da08053bcf',
         'Made Conditional request with correct ETag');
-    
+    is($resp->content, 'Hello... ETag',
+        '... and returns the response from cache');
     
     # Make a request that will get a response to fill the cache
     # using a last-modified
@@ -78,6 +81,7 @@ subtest 'Revalidate: use provided validators' => sub {
     
     my $resp_last = $resp_minimal->clone;
     $resp_last->header(last_modified => 'Thu, 01 Jan 1970 01:01:00');
+    $resp_last->content('Hello... Last-Modified');
     
     $forwarded_resp = $resp_last;
     
@@ -86,10 +90,12 @@ subtest 'Revalidate: use provided validators' => sub {
     
     # Unset it and make the request again
     $forwarded_rqst = undef;
-    $http_caching->make_request($rqst_last);
+    $resp = $http_caching->make_request($rqst_last);
     
     is($forwarded_rqst->header('If-Modified-Since'),
         'Thu, 01 Jan 1970 01:01:00',
         'Made Conditional request with correct IF-Modified-Since');
-    
+    is($resp->content, 'Hello... Last-Modified',
+        '... and returns the response from cache');
+   
 };
