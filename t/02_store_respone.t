@@ -50,7 +50,7 @@ subtest "Simple Storing" => sub {
     ok (exists $cache{$URI_MD5}, 
         'stored under the right key');
     
-    my @meta_keys = keys $cache{$URI_MD5};
+    my @meta_keys = keys %{$cache{$URI_MD5}};
     
     isa_ok ($cache{$meta_keys[0]}, 'HTTP::Response',
         '... a HTTP::Request object');
