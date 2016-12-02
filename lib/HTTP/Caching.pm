@@ -274,6 +274,15 @@ sub make_request {
     
     unless ($self->cache) {
         $response = $self->_forward($presented_request, @params);
+    } elsif ( $self->_non_safe($presented_request) ) {
+        
+        # always forwad requests with unsafe methods
+        $response = $self->_forward($presented_request, @params);
+        
+        # when returned with a non-err, invalidate the cache
+        if ( $response->is_success or $response->is_redirect ) {
+            $self->_invalidate($presented_request)
+        }
     } else {
         if (my $cache_resp =
             $self->_retrieve($presented_request)
@@ -516,6 +525,54 @@ sub _retrieve_response {
         . " could not retrieve response from cache with key [$resp_key], $@";
     
     return
+}
+
+sub _invalidate {
+    my $self            = shift;
+    my $rqst_presented  = shift;
+    
+    my $rqst_key = Digest::MD5::md5_hex($rqst_presented->uri()->as_string);
+    my $meta_dict = $self->_retrieve_meta_dict($rqst_key);
+    
+    return unless $meta_dict;
+    
+    my @meta_keys = keys %$meta_dict;
+    
+    foreach my $meta_key (@meta_keys) {
+        $self->_invalidate_response($meta_key);
+    }
+    
+    $self->_invalidate_meta_dict($rqst_key);
+    
+    return;
+}
+
+sub _invalidate_meta_dict {
+    my $self        = shift;
+    my $rqst_key    = shift;
+    
+    $self->cache->remove($rqst_key);
+    
+    return
+}
+
+sub _invalidate_response {
+    my $self        = shift;
+    my $resp_key    = shift;
+    
+    $self->cache->remove($resp_key);
+    
+    return
+}
+
+sub _non_safe {
+    my $self        = shift;
+    my $rqst        = shift;
+    
+    my $method = eval { HTTP::Method->new( uc $rqst->method ) };
+    return 1 unless $method; #safety can not be guaranteed
+    
+    return not $method->is_method_safe
 }
 
 # _may_store_in_cache()
