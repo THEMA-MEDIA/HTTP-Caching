@@ -1,3 +1,4 @@
+.gitignore
 /blib/
 /.build/
 _build/
@@ -18,3 +19,4 @@ nytprof.out
 *.o
 *.bs
 /_eumm/
+*.tar.gz

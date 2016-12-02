@@ -25,6 +25,7 @@ WriteMakefile(
         'Carp'                          => 0,
         'Digest::MD5'                   => 0,
         'HTTP::Method'                  => 0,
+        'List::MoreUtils'               => 0,
         'Monkey::Patch::Action'         => 0,
         'Moo'                           => 0,
         'MooX::Types::MooseLike::Base'  => 0,
