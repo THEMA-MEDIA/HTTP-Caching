@@ -10,7 +10,7 @@ Version 0.05
 
 =cut
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 use strict;
 use warnings;
@@ -72,6 +72,16 @@ has cache => (
     builder     => sub {
         warn __PACKAGE__ . " without cache, forwards requests and responses\n";
         return undef
+    },
+);
+
+has cache_meta => (
+    is          => 'ro',
+    required    => 0,
+    isa         => Maybe[ HasMethods['set', 'get'] ],
+    lazy        => 1,
+    builder     => sub {
+        return shift->cache
     },
 );
 
@@ -389,9 +399,9 @@ sub _insert_meta_dict {
     my $resp_key    = shift;
     my $meta_data   = shift;
     
-    my $meta_dict  = $self->cache->get($rqst_key) || {};
+    my $meta_dict  = $self->cache_meta->get($rqst_key) || {};
     $meta_dict->{$resp_key} = $meta_data;
-    $self->cache->set( $rqst_key => $meta_dict );
+    $self->cache_meta->set( $rqst_key => $meta_dict );
     
     return $meta_dict;
 }
@@ -508,7 +518,7 @@ sub _retrieve_meta_dict {
     my $self        = shift;
     my $rqst_key    = shift;
     
-    my $meta_dict  = $self->cache->get($rqst_key);
+    my $meta_dict  = $self->cache_meta->get($rqst_key);
     
     return $meta_dict;
 }
@@ -551,7 +561,7 @@ sub _invalidate_meta_dict {
     my $self        = shift;
     my $rqst_key    = shift;
     
-    $self->cache->remove($rqst_key);
+    $self->cache_meta->remove($rqst_key);
     
     return
 }
