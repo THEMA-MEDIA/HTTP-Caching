@@ -6,7 +6,7 @@ use HTTP::Request;
 use HTTP::Response;
 
 subtest 'Simple modifiactions' => sub {
-    plan tests => 5;
+    plan tests => 6;
     
     
     my $request = HTTP::Request->new();
@@ -15,6 +15,16 @@ subtest 'Simple modifiactions' => sub {
     
     my $forwarded_resp = HTTP::Response->new(501);
     my $forwarded_rqst;
+
+    my $http_caching_undefs =
+        new_ok('HTTP::Caching', [
+            cache                   => undef, # no cache needed for these tests
+            cache_type              => undef,
+            cache_control_request   => undef,
+            cache_control_response  => undef,
+            forwarder               => sub { },
+        ] , 'my $http_caching_undefs'
+    );
     
     my $http_caching =
         new_ok('HTTP::Caching', [

@@ -10,7 +10,7 @@ Version 0.05
 
 =cut
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 use strict;
 use warnings;
@@ -94,13 +94,13 @@ has cache_type => (
 has cache_control_request => (
     is          => 'ro',
     required    => 0,
-    isa         => Str,
+    isa         => Maybe[ Str ],
 );
 
 has cache_control_response => (
     is          => 'ro',
     required    => 0,
-    isa         => Str,
+    isa         => Maybe[ Str ],
 );
 
 has forwarder => (
@@ -307,7 +307,7 @@ sub make_request {
      # add the default Cache-Control response header-field
     $response->headers->push_header(
         cache_control => $self->cache_control_response,
-    ) if $self->cache_control_request;
+    ) if $self->cache_control_response;
    
     return $response;
     
