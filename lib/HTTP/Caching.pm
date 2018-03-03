@@ -115,6 +115,44 @@ sub is_shared {
     return unless $self->cache_type;
     return $self->cache_type eq 'public'
 }
+
+=head1 DEPRECATION WARNING !!!
+
+This module is going to be completely redesigned!!!
+
+As it was planned, these are the brains, but unfortunately, it has become an
+implementation.
+
+The future version will answer two questions:
+
+=over
+
+=item may_store
+
+=item may_reuse
+
+=back
+
+Those are currently implemented as private methods.
+
+Please contact the author if you rely on this module directly to prevent
+breakage
+
+Sorry for any inconvenience
+
+=head 1 ADVICE
+
+Please use L<LPW::UserAgent::Caching> or <LWP::UserAgent::Caching::Simple>.
+
+=head1 NOTE
+
+You can surpress the message by setting the environment varibale
+C<HTTP_CACHING_DEPRECATION_WARNING_HIDE>
+
+=cut
+
+use HTTP::Caching::DeprecationWarning;
+
 =head1 DESCRIPTION
 
 This module tries to provide caching for HTTP responses based on
@@ -262,6 +300,9 @@ another 5XX Error.
 =cut
 
 sub make_request {
+    
+    HTTP::Caching::DeprecationWarning->show_once();
+
     my $self = shift;
     
     croak __PACKAGE__
@@ -1045,6 +1086,5 @@ my $handle = Monkey::Patch::Action::patch_package (
         return any {$_ == $code} (200,203,204,206,300,301,404,405,410,414,501)
     }
 );
-
 
 1;
