@@ -144,6 +144,11 @@ Sorry for any inconvenience
 
 Please use L<LPW::UserAgent::Caching> or <LWP::UserAgent::Caching::Simple>.
 
+=head1 NOTE
+
+You can surpress the message by setting the environment varibale
+C<HTTP_CACHING_DEPRECATION_WARNING_HIDE>
+
 =cut
 
 use HTTP::Caching::DeprecationWarning;
