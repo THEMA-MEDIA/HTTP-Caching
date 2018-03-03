@@ -995,8 +995,8 @@ sub _may_reuse_from_cache {
             grep { $_ =~ /^max-stale\s*=?\s*\d*$/ } @rqst_directives;
         
         if ($directive) {
-            my ($max_stale) = $directive =~ /:(\d+)$/;
-            unless ($max_stale) {
+            my ($max_stale) = $directive =~ /=(\d+)$/;
+            unless (defined $max_stale) {
                 carp "DO REUSE: 'max-stale' for unlimited time\n"
                     if $DEBUG;
                 return $REUSE_IS_STALE_OK
