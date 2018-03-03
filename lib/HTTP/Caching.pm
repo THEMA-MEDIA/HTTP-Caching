@@ -146,6 +146,8 @@ Please use L<LPW::UserAgent::Caching> or <LWP::UserAgent::Caching::Simple>.
 
 =cut
 
+use HTTP::Caching::DeprecationWarning;
+
 =head1 DESCRIPTION
 
 This module tries to provide caching for HTTP responses based on
@@ -293,6 +295,9 @@ another 5XX Error.
 =cut
 
 sub make_request {
+    
+    HTTP::Caching::DeprecationWarning->show_once();
+
     my $self = shift;
     
     croak __PACKAGE__
