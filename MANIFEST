@@ -1,6 +1,5 @@
 Changes
 cpanfile
-HTTP-Caching-0.11.tar.gz
 lib/HTTP/Caching.pm
 lib/HTTP/Caching/DeprecationWarning.pm
 LICENSE
