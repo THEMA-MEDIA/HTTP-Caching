@@ -139,7 +139,7 @@ breakage
 
 Sorry for any inconvenience
 
-=head 1 ADVICE
+=head1 ADVICE
 
 Please use L<LPW::UserAgent::Caching> or <LWP::UserAgent::Caching::Simple>.
 
