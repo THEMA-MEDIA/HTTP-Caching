@@ -1,3 +1,14 @@
+0.15  2018-04-09 VANHOESEL
+
+      - fix Changes file
+
+0.14  2018-04-09 VANHOESEL
+
+      - fix release version and dependencies
+
+      [ Merge pull request #21 from manwar/tidy-up-manifest ]
+      - Tidied up MANIFEST file as reported by CPANTS.
+
 0.13  2018-04-09 VANHOESEL
 
       - fix release version and dependencies
