@@ -141,7 +141,7 @@ Sorry for any inconvenience
 
 =head1 ADVICE
 
-Please use L<LPW::UserAgent::Caching> or <LWP::UserAgent::Caching::Simple>.
+Please use L<LPW::UserAgent::Caching> or L<LWP::UserAgent::Caching::Simple>.
 
 =head1 NOTE
 
